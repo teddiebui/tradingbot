@@ -13,10 +13,15 @@ import collections
 import pprint
 import os
 import tkinter as tk
+import websocket
+
 from tkinter import *
 from binance.enums import *
 from binance.client import Client
 from binance.exceptions import BinanceAPIException, BinanceOrderException
+
+import crawler.priceCrawler as pc
+import crawler.candleCrawler as cc
 
 
 
@@ -32,7 +37,11 @@ class MainApplication:
 
 		self.THREADS = []
 
-		self.is_crawling = False
+		self.price_is_crawling = False
+		self.candle_is_crawling = False
+
+		self.candle_crawler = None #initiation
+		self.price_crawler = None #initiation
 
 
 	def run(self):
@@ -76,6 +85,8 @@ class MainApplication:
 	    Button(self.loginScreen, text="Login", width=10, height=1, command=self.login_verification).pack()
 
 
+
+
 	def login_verification(self):
 
 		apiKey = apiKeyEntry.get()
@@ -85,95 +96,196 @@ class MainApplication:
 		print("apiSecrect: ---{}---".format(apiSecret)) #debug
 
 		self.client = Client(apiKey, apiSecret)
+		self.price_crawler = pc.PriceCrawler(self.client)
+		self.candle_crawler = cc.CandleCrawler(self.client)
+
 		# self.client = Client(apiKey, apiSecret, {'verify': True, 'timeout' : 5}) #deprecated
 		self.loginScreen.destroy()
 		
 		info = self.client.get_account() #testing credentials
 		pprint.pprint(info)
 
-		del apiKey
-		del apiSecret
-
-		self.login_done()
+		# CLEANUP FUNCTION
+		self.login_cleaning()
 
 
-	def login_done(self):
+	def login_cleaning(self):
 
+		#cleanup
 		self.w.destroy()
+
+		#start window again
 
 		self.w = tk.Tk()
 		self.w.geometry('1024x640')
 		self.w.title('TRADING BOT for CRYPTOCURRENCY')
 
-		Label(self.w, text="Welcome to Trading BOT. let's get started").pack()
-		Label(self.w, text="Enter symbol to crawl price(ex: BNBUSDT): ").pack()
-		self.symbol = Entry(self.w, width="50", text="HELLO")
-		self.symbol.pack()
-		self.crawlPriceButton = Button(self.w, text="Crawl", command=self.crawlPrice)
-		self.crawlPriceButton.pack()
+
+
+
+		#CRAWL PRICE WIDGETS
+		Label(self.w, text="Enter symbol to crawl price (ex: BNBUSDT): ").pack()
+		self.symbol_price = Entry(self.w, width="50")
+		self.crawl_price_button = Button(self.w, text="Start Price Crawling", command=self.crawl_price)
+
+		self.symbol_price_label = Label(self.w, text="")
+		self.price_label = Label(self.w, text="")
+
+		self.symbol_price.pack()
+		self.crawl_price_button.pack()
+		self.symbol_price_label.pack()
+		self.price_label.pack()
+
+		#CRAWL CANDLE WIDGETS
+		Label(self.w, text="Enter symbol to crawl candle (ex: BNBUSDT): ").pack()
+		self.symbol_candle = Entry(self.w, width="50")
+		self.crawl_candle_button = Button(self.w, text="Start Candle Crawling", command=self.crawl_candle)
+
+	
+		self.symbol_candle_label = Label(self.w, text="")
+		self.candle_label = Label(self.w, text="")
+
+		self.symbol_candle.pack()
+		self.crawl_candle_button.pack()
+		self.symbol_candle_label.pack()
+		self.candle_label.pack()
 
 
 		self.w.mainloop()
 
-	def crawlPrice(self):
+	def crawl_price(self):
 
 		#get symbol input
-		symbol = self.symbol.get()
-		print("crawl price, symbol: ", symbol)
+		symbol_price = self.symbol_price.get()
+		print("crawl price, symbol: ", symbol_price)
+
+		self.symbol_price_label.configure(text=symbol_price.upper())
+		#start price crawler
+		self.price_crawler.start_crawling()
 
 		#create crawl price thread
-		thread = threading.Thread(target=self.crawlPriceHandler, args=(symbol, len(self.THREADS) + 1),)
+		thread = threading.Thread(target=self.crawl_price_handler, args=(symbol_price,))
 		self.THREADS.append(thread)
 		thread.start()
 
-		#delete controller
-		self.crawlPriceButton.destroy()
-		self.stopCrawlPriceButton = Button(self.w, text="Stop Crawling", command=self.stopCrawlPrice)
-		self.stopCrawlPriceButton.pack()
+		#configure button from crawl to stop crawl
+		self.crawl_price_button.configure(text="Stop Crawling Price", command=self.stop_crawling_price)
 
-		self.symbolLabel = Label(self.w, text="{}: ".format(symbol))
-		self.priceLabel = Label(self.w, text="")
 
-		self.symbolLabel.pack()
-		self.priceLabel.pack()
+	def crawl_price_handler(self, symbol_price):
 
-	def crawlPriceHandler(self, symbol, threadID):
+		self.price_is_crawling = True
 
-		print("thread {} start".format(threadID))
+		try:
+			while self.price_is_crawling == True:
+				print(self.price_is_crawling)
 
-		self.is_crawling = True
+				self.prices = self.price_crawler.get_price_list()
 
-		while True:
+				for i in self.prices:
+					if i['symbol'] == symbol_price.upper():
+						self.price_label.configure(text = i['price'])
+				# self.price_label.configure(text = self.price['price'])
 
-			self.price = self.client.get_symbol_ticker(symbol=symbol)
-			print(self.price)
+				if self.price_is_crawling == False:
+					print("crawl price back test done")
+					break
 
-			self.priceLabel.configure(text = self.price['price'])
+				time.sleep(0.25)
+		except Exception as e:
+			print(repr(e))
+		finally:
+			self.price_crawler.terminate()
 
-			if self.is_crawling == False:
-				self.symbolLabel.destroy()
-				self.priceLabel.destroy()
-				print("crawl back test done")
-				return
+	def stop_crawling_price(self):
 
-			time.sleep(0.25)
+		self.price_is_crawling = False
+		print("stop crawling price: ", self.price_is_crawling)
+		self.crawl_price_button.configure(text="Start PriceCrawling", command=self.crawl_price)
+		# self.symbol_price_label.configure(text="")
+		# self.price_label.configure(text="")
 
-	def stopCrawlPrice(self):
-		self.is_crawling = False
-		print("stop crawling price")
-		self.stopCrawlPriceButton.destroy()
-		self.symbolLabel.configure(text="")
-		self.priceLabel.copnfigure(text="")
-		self.crawlPriceButton = Button(self.w, text="Crawl", command=self.crawlPrice)
-		self.crawlPriceButton.pack()
+
+	def crawl_candle(self):
+
+		#get symbol input
+		symbol_candle = self.symbol_candle.get()
+		print("crawl candle, symbol: ", symbol_candle)
+
+		#start price crawler
+		self.candle_crawler.start_crawling(symbol_candle)
+
+		#create crawl price thread
+		thread = threading.Thread(target=self.crawl_candle_handler, args=(symbol_candle,))
+		self.THREADS.append(thread)
+		thread.start()
+
+		#configure button from crawl to stop crawl
+		self.crawl_candle_button.configure(text="Stop Crawling Candle", command=self.stop_crawling_candle)
+
+		pass
+
+	def crawl_candle_handler(self, symbol_candle):
+		
+		self.candle_is_crawling = True
+
+		try:
+			while self.candle_is_crawling == True:
+				print("crawling candle")
+
+				self.candle = self.candle_crawler.get_candle()
+				self.candle_label.configure(text=str(self.candle))
+
+
+				if self.candle_is_crawling == False:
+					print("crawl candle back test done")
+					break
+
+		except Exception as e:
+			print(repr(e))
+		finally:
+			self.candle_crawler.terminate()
+
+	def stop_crawling_candle(self):
+
+		self.candle_is_crawling = False
+		print("stop crawling candle")
+		self.crawl_candle_button.configure(text="Start Candle Crawling", command=self.crawl_candle)
+	
+
+	def create_websocket(self):
+		self.ws = websocket.WebSocketApp()
+
+	def cleanup(self):
+
+		# self.candle_crawler.terminate()
+		self.price_crawler.terminate()
+
+
+
 
 if __name__ == "__main__":
 
-	# info = client.get_account() #testing credentials
-	# pprint.pprint(info)
+	client = Client("TFWFmx5lPFNkkQnEIQsl2596kr1errGmaabzC3bFWI17mifeIYmnBybtU4Opkkyp", "kBzXtdMQsOVCrfV9qwyCabshmyALX3ABNjzGJF2a7ZoHF7oh6lzh4gEuvHOwQBSR")
+
+	# # info = client.get_account() #testing credentials
+	# # pprint.pprint(info)
+	# client = Client("TFWFmx5lPFNkkQnEIQsl2596kr1errGmaabzC3bFWI17mifeIYmnBybtU4Opkkyp", "kBzXtdMQsOVCrfV9qwyCabshmyALX3ABNjzGJF2a7ZoHF7oh6lzh4gEuvHOwQBSR")
 
 
-	main = MainApplication()
+	try:
+		main = MainApplication()
+		main.run()
+	except:
+		print("some error occur")
+		main.cleanup()
 
-
-	main.run()
+	# try:
+	# 	p = pc.PriceCrawler(client)
+	# 	p.start_crawling()
+	# 	while True:
+	# 		p.get_price_list()
+	# except KeyboardInterrupt as e:
+	# 	print(repr(e))
+	# 	print("ENDDDDDDDDDDDDDDD")
+	# 	p.terminate()
