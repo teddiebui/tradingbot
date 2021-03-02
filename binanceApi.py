@@ -14,6 +14,7 @@ import pprint
 import os
 import tkinter as tk
 import websocket
+import talib
 
 from tkinter import *
 from binance.enums import *
@@ -40,8 +41,11 @@ class MainApplication:
 		self.price_is_crawling = False
 		self.candle_is_crawling = False
 
-		self.candle_crawler = None #initiation
-		self.price_crawler = None #initiation
+		self.candle_crawler = None 
+		self.price_crawler = None 
+
+		self.candle_closes = []
+		self.rsi = []
 
 
 	def run(self):
@@ -120,8 +124,10 @@ class MainApplication:
 		self.w.geometry('1024x640')
 		self.w.title('TRADING BOT for CRYPTOCURRENCY')
 
+		self.add_widgets()
 
 
+	def add_widgets(self):
 
 		#CRAWL PRICE WIDGETS
 		Label(self.w, text="Enter symbol to crawl price (ex: BNBUSDT): ").pack()
@@ -142,13 +148,23 @@ class MainApplication:
 		self.crawl_candle_button = Button(self.w, text="Start Candle Crawling", command=self.crawl_candle)
 
 	
-		self.symbol_candle_label = Label(self.w, text="")
+		self.symbol_candle_label = Label(self.w, text="Candle closes price list: ")
 		self.candle_label = Label(self.w, text="")
 
 		self.symbol_candle.pack()
 		self.crawl_candle_button.pack()
 		self.symbol_candle_label.pack()
 		self.candle_label.pack()
+
+		#RSI WIDGETS
+
+		self.rsi_label = Label(self.w, text="RSI: ")
+		self.rsi_value_label = Label(self.w, text="")
+
+		self.rsi_label.pack()
+		self.rsi_value_label.pack()
+
+
 
 
 		self.w.mainloop()
@@ -158,6 +174,8 @@ class MainApplication:
 		#get symbol input
 		symbol_price = self.symbol_price.get()
 		print("crawl price, symbol: ", symbol_price)
+
+
 
 		self.symbol_price_label.configure(text=symbol_price.upper())
 		#start price crawler
@@ -212,6 +230,17 @@ class MainApplication:
 		symbol_candle = self.symbol_candle.get()
 		print("crawl candle, symbol: ", symbol_candle)
 
+		#initiation
+		klines = client.get_historical_klines(symbol_candle.upper(), Client.KLINE_INTERVAL_1MINUTE, "1 day ago UTC")
+
+		self.candle_closes = [float(i[4]) for i in klines] 
+		del self.candle_closes[-1]
+		self.rsi = list(talib.RSI(numpy.array(self.candle_closes)))
+		self.rsi = list(map(lambda x: round(x,2), self.rsi))
+
+		self.candle_label.configure(text=str(self.candle_closes[-14:]))
+		self.rsi_value_label.configure(text=str(self.rsi[-14:]))
+
 		#start price crawler
 		self.candle_crawler.start_crawling(symbol_candle)
 
@@ -223,7 +252,6 @@ class MainApplication:
 		#configure button from crawl to stop crawl
 		self.crawl_candle_button.configure(text="Stop Crawling Candle", command=self.stop_crawling_candle)
 
-		pass
 
 	def crawl_candle_handler(self, symbol_candle):
 		
@@ -231,18 +259,28 @@ class MainApplication:
 
 		try:
 			while self.candle_is_crawling == True:
-				print("crawling candle")
 
-				self.candle = self.candle_crawler.get_candle()
-				self.candle_label.configure(text=str(self.candle))
+				candle = json.loads(self.candle_crawler.get_candle())
 
+				if candle['k']['x'] == True:
+					self.candle_closes.append(float(candle['k']['c']))
+					self.candle_label.configure(text=str(self.candle_closes[-14:]))
+
+					self.rsi = list(talib.RSI(numpy.array(self.candle_closes)))
+					self.rsi = list(map(lambda x: round(x,2), self.rsi))
+					self.rsi_value_label.configure(text=str(self.rsi[-14:]))
+
+					if len(self.candle_closes) > 1440:
+						del self.candle_closes[0]
+
+					print("len candles: ", len(self.candle_closes))
 
 				if self.candle_is_crawling == False:
 					print("crawl candle back test done")
 					break
 
 		except Exception as e:
-			print(repr(e))
+			print(e)
 		finally:
 			self.candle_crawler.terminate()
 

@@ -3,6 +3,7 @@ import websocket
 import time
 import pprint
 import queue
+import json
 
 
 class CandleCrawler:
@@ -66,7 +67,11 @@ class CandleCrawler:
 	def _wss_on_message(self, ws, msg):
 
 		self.candles.put(msg)
-		print(msg)
+		msg = json.loads(msg)
+		if msg['k']['x'] == True:
+			pprint.pprint(msg)
+		else:
+			print("..received")
 
 
 	def terminate(self):
@@ -105,9 +110,9 @@ if __name__ == "__main__":
 
 	while True:
 		count+=1
-		print(c.get_candle())
+		c.get_candle()
 		print("count: ", 1)
-		if count == 5:
+		if count == 100:
 			b = time.time()
 			c.terminate()
 			print("terminate ws")
