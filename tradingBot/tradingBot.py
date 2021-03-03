@@ -8,45 +8,130 @@ import websocket
 from binance.client import Client
 from binance.exceptions import BinanceAPIException, BinanceOrderException
 
-class TradingBot:
+from ..crawler import candleCrawler as cc
 
-	def __init__(self, apiKey, apiSecret):
+class TradingBot(threading.Thread):
 
-		self.client = Client(apiKey, apiSecret)
-		self.queue = collections.deque()
-		self.candles = []
+	def __init__(self, client, symbol):
+
+		threading.Thread.__init__(self)
+
+		self.OVERBOUGHT_THRESHOLD = 70
+		self.OVERSOLD_THRESHOLD = 30
+
+		self.client = client
+		self.symbol = symbol
+
+		#indicator lists
 		self.rsi = []
 		self.macd = []
-
-		self.THREADS = collections.deque()
-		self.mode = None
-		self.is_running = False
-
-		self.orders = {}
-
-		self.ws = ""
-		self.WEBSOCKETS = ["wss://stream.binance.com:9443/ws/ethusdt@kline_1m"] # strings
-
-		self.current_candle = []
+		self.macd_signal = []
+		self.macd_hist = []
 
 
+		self.candle_crawler = cc.CandleCrawler(client, symbol)
+		self._refresh_indicator()
+
+		print("bot created")
+
+
+	
 
 	def crawl_klines(self):
 
 		# CALCULATE EVERY MINTUE
-		print("crawlKlines")
+		self.candle_crawler.start_crawling(callback=self._refresh_indicator)
+		print("crawling candle")
 		
+	def _refresh_indicator(self):
+		print("refresing indicator...")
 
-	def calculate_rsi(self):
+		self._refresh_rsi()
+		self._refresh_macd()
+
+
+		print("...done")
+
+		print("len rsi: ",len(self.rsi), self.rsi[-4:])
+
+		print("len macd: ",len(self.macd), self.macd[-4:])
+		print("len macd_signal: ",len(self.macd_signal), self.macd_signal[-4:])
+		print("len macd_hist: ",len(self.macd_hist), self.macd_hist[-4:])
+		print("len candles: ", len(self.candle_crawler.candle_closes), self.candle_crawler.candle_closes[-4:])
+
+		print(self._check())
+
+
+	def _refresh_rsi(self):
+
+		print("calculate rsi")	
+		# CALCULATE EVERY MINTUE
+		self.rsi = list(talib.RSI(numpy.array(self.candle_crawler.candle_closes)))
+		self.rsi = list(map(lambda x: round(x,2), self.rsi))	
+
+	def _check(self):
+		print("check if can buy")
+
+		last_rsi = self.rsi[-1]
+		last_close = self.candle_crawler.candle_closes[-1]
+
+		last_macd = self.macd[-1]
+		last_macd_signal = self.macd_signal[-1]
+		last_macd_hist = self.macd_hist[-1]
+
+		print("""
+	- last RSI :				{}
+	- last price :				{}
+
+	- last MACD :				{}
+	- last MACD signal :		{}
+	- last MACD histogram :		{}
+			""".format(last_rsi,last_close,last_macd,last_macd_signal,last_macd_hist))
+
+		validate_rsi = self.validate_rsi()
+		validate_macd = self.validate_macd()
+
+		if validate_rsi == True and validate_macd == True:
+			("BUY BUY BUY")
+
+
+	def _refresh_macd(self):
 
 		# CALCULATE EVERY MINTUE
-		print("calculate rsi")
-		
+		self.macd, self.macd_signal, self.macd_hist = talib.MACD(
+			numpy.array(self.candle_crawler.candle_closes),
+			fastperiod=12, 
+			slowperiod=26, 
+			signalperiod=9)
 
-	def calculate_macd(self):
+		#prettifying
+		self.macd = list(map(lambda x: round(x,2), self.macd))
+		self.macd_signal = list(map(lambda x: round(x,2), self.macd_signal))
+		self.macd_hist = list(map(lambda x: round(x,2), self.macd_hist))
 
-		# CALCULATE EVERY MINTUE
 		print("calculate macd")
+
+		
+
+	def validate_rsi(self):
+		#TODO: viet logic validate rsi
+
+		if self.rsi[-1] < self.OVERSOLD_THRESHOLD:
+			return True
+
+		return False
+
+	def validate_macd(self):
+
+		#TODO: viet logic validate macd
+
+		if self.macd[-2] < 0 and self.macd_signal[-2] < 0:
+			return False
+
+		if self.macd[-1] < 0 and self.macd_signal[-1] < 0:
+			return False
+
+		return True
 
 	def order_buy_market(self):
 
@@ -69,55 +154,9 @@ class TradingBot:
 		print("stoploss")
 
 	def run(self):
+		self.crawl_klines()
 
-		# self.candles = self.client.get_klines(symbol='BNBBTC', interval=Client.KLINE_INTERVAL_1MINUTE)
-		# thread = threading.Thread(target=crawKlinesHandler, args=(len(self.THREADS) + 1))
-		# self.THREAD.append(thread)
-		# thread.start()
-		print("run socket")
-		self.candle_websocket(self.WEBSOCKETS[0])
 
-		print("run")
-
-	def crawlKlinesHandler(self, threadId):
-		while True:
-			print("crawling candles")
-		# helper function for threading
-
-	def crawlPriceHandler(self, symbol):
-		# helper function for threading
-		pass
-
-	def candle_websocket(self, socket):
-		print(socket)
-		self.ws = websocket.WebSocketApp(socket, 
-										on_open=self.ws_on_open,
-										on_close=self.ws_on_close,
-										on_error=self.ws_on_error,
-										on_message=self.ws_on_message)
-		print("created websocket")
-		self.ws.run_forever()
-		print("now running weboscket")
-		# thread = threading.Thread(target=crawlKlinesHandler, args=(len(self.THREADS) + 1,))
-		# self.THREADS.append(thread)
-		# thread.start()
-
-	def ws_on_open(ws):
-		print("websocket open: ", ws)
-
-	def ws_on_close (ws):
-		print("websocket close ", ws)
-
-	def ws_on_error(ws, error):
-		print("websocket error")
-		print(error)
-		print("from ", ws)
-
-	def ws_on_message(ws, msg):
-		pprint.pprint(msg)
-		print(type(msg))
-		self.current_candle = msg
 
 if __name__ == "__main__":
-	bot = TradingBot("TFWFmx5lPFNkkQnEIQsl2596kr1errGmaabzC3bFWI17mifeIYmnBybtU4Opkkyp", "kBzXtdMQsOVCrfV9qwyCabshmyALX3ABNjzGJF2a7ZoHF7oh6lzh4gEuvHOwQBSR")
-	bot.run()
+	pass
