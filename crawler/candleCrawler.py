@@ -5,50 +5,57 @@ import pprint
 import queue
 import json
 
+from binance.client import Client
+
 
 class CandleCrawler:
 
-	def __init__(self, client):
+	def __init__(self, client, symbol):
 
 		self.client = client
-		self.symbol = ""
-		self.is_running = False
+		self.symbol = symbol
+		
 
-		self.WEBSOCKETS = ["wss://stream.binance.com:9443/ws/symbol@kline_1m"]
+		self.WEBSOCKETS = ["wss://stream.binance.com:9443/ws/{}@kline_1m".format(symbol.lower())]
+
 		self.THREADS = []
 
-		self.candles = queue.Queue()
-		self.candle = None
+		self.candle_closes = self.candle_initiation()
 
 		self.ws = None
+		self.is_running = False
 
-	def start_crawling(self, symbol):
-		self.symbol = symbol
-		self.is_running = True
+	def candle_initiation(self):
 
-		thread = threading.Thread(target=self._start_crawling_handler, args=(self.symbol,))
-		thread.start()
-		self.THREADS.append(thread)
+		# return list
+		klines = self.client.get_historical_klines(self.symbol.upper(), Client.KLINE_INTERVAL_1MINUTE, "1 day ago UTC")
+		candle_closes = [float(i[4]) for i in klines]
+		return candle_closes[:-1] 
 
 	def get_candle(self):
 
-		try:
-			self.candle = self.candles.get(timeout=5)
-			return self.candle
-		except Exception as e:
-			print(repr(e))
+		pass
 
-	def _start_crawling_handler(self, symbol):
 
-		self.symbol = symbol
+	def start_crawling(self, callback = None):
 
-		socket = self.WEBSOCKETS[-1].replace("symbol", symbol.lower())
-		print(socket)
+		self.is_running = True
+
+		thread = threading.Thread(target=self._start_crawling_handler, args=(callback, ))
+		thread.start()
+		self.THREADS.append(thread)
+
+	
+
+	def _start_crawling_handler(self, callback = None):
+
+
+		socket = self.WEBSOCKETS[-1]
 		self.ws = websocket.WebSocketApp(socket,
 											on_open = lambda ws: self._wss_on_open(ws),
 											on_error = lambda ws, error: self._wss_on_error(ws, error),
 											on_close = lambda ws: self._wss_on_close(ws),
-											on_message = lambda ws,msg: self._wss_on_message(ws, msg))
+											on_message = lambda ws,msg: self._wss_on_message(ws, msg, callback))
 		self.ws.run_forever()
 
 
@@ -64,15 +71,18 @@ class CandleCrawler:
 
 		print("error: ", error)
 
-	def _wss_on_message(self, ws, msg):
+	def _wss_on_message(self, ws, msg, callback):
 
-		self.candles.put(msg)
+		print("..received")
 		msg = json.loads(msg)
 		if msg['k']['x'] == True:
-			pprint.pprint(msg)
-		else:
-			print("..received")
 
+			print("Close")
+			self.candle_closes.append(float(msg['k']['c']))
+
+			if len(self.candle_closes) > 1440:
+				del self.candle_closes[0]
+			callback()
 
 	def terminate(self):
 		print("terminate")
@@ -84,7 +94,7 @@ def handler():
 	def connect():
 		print("connecting")
 	while True:
-		print("hello")
+		print(__package__)
 		count += 1
 		time.sleep(0.25)
 
@@ -93,34 +103,4 @@ def handler():
 
 
 if __name__ == "__main__":
-
-	## BACK TESTING
-
-	from binance.client import Client
-
-	client = Client("TFWFmx5lPFNkkQnEIQsl2596kr1errGmaabzC3bFWI17mifeIYmnBybtU4Opkkyp", "kBzXtdMQsOVCrfV9qwyCabshmyALX3ABNjzGJF2a7ZoHF7oh6lzh4gEuvHOwQBSR")
-
-	c = CandleCrawler(client)
-
-	c.start_crawling("BNBUSDT")
-
-	count = 0
-
-	a= time.time()
-
-	while True:
-		count+=1
-		c.get_candle()
-		print("count: ", 1)
-		if count == 100:
-			b = time.time()
-			c.terminate()
-			print("terminate ws")
-			time.sleep(0.25)
-			break
-
-	cc = time.time()
-	print("time lapsed: ", cc - a)
-	print("time terminating ws: ", cc - b)
-
-
+	pass
