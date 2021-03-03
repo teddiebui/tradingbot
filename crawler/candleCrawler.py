@@ -5,6 +5,7 @@ import pprint
 import queue
 import json
 
+
 from binance.client import Client
 
 
@@ -20,7 +21,7 @@ class CandleCrawler:
 
 		self.THREADS = []
 
-		self.candle_closes = self.candle_initiation()
+		self.candles, self.closes = self.candle_initiation()
 
 		self.ws = None
 		self.is_running = False
@@ -29,8 +30,17 @@ class CandleCrawler:
 
 		# return list
 		klines = self.client.get_historical_klines(self.symbol.upper(), Client.KLINE_INTERVAL_1MINUTE, "1 day ago UTC")
-		candle_closes = [float(i[4]) for i in klines]
-		return candle_closes[:-1] 
+		candles = [{
+						'open' : float(i[1]), 
+						'high' : float(i[2]), 
+						'low' : float(i[3]), 
+						'close' :float(i[4])
+					} for i in klines]
+
+		closes = [float(i[4]) for i in klines]
+
+
+		return candles, closes[:-1] 
 
 	def get_candle(self):
 
@@ -75,32 +85,29 @@ class CandleCrawler:
 
 		print("..received")
 		msg = json.loads(msg)
+
 		if msg['k']['x'] == True:
+			pprint.pprint(msg)
 
-			print("Close")
-			self.candle_closes.append(float(msg['k']['c']))
+			candle = {
+						'open' : float(msg['k']['o']), 
+						'high' : float(msg['k']['h']), 
+						'low' : float(msg['k']['l']), 
+						'close' :float(msg['k']['c'])
+					}
 
-			if len(self.candle_closes) > 1440:
-				del self.candle_closes[0]
+			self.candles.append(candle)
+			self.closes.append(float(msg['k']['c']))
+
+			if len(self.closes) > 1440:
+				del self.closes[0]
+
 			callback()
 
-	def terminate(self):
-		print("terminate")
+	def stop(self):
+
 		self.ws.keep_running = False
 		self.is_running = False
-
-def handler():
-	count = 0
-	def connect():
-		print("connecting")
-	while True:
-		print(__package__)
-		count += 1
-		time.sleep(0.25)
-
-		if count % 10 == 0:
-			connect()
-
 
 if __name__ == "__main__":
 	pass

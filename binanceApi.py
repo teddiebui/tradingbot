@@ -10,6 +10,7 @@ import collections
 import pprint
 import websocket
 import talib
+import tkinter as tk
 
 import os
 import sys
@@ -34,14 +35,21 @@ class MainApplication:
 
 		self.client = Client(apiKey, apiSecret)
 
-		self.trading_bots = []
+		self.BOTS = []
 		self.THREADS = []
 
-	def run(self):
-		bot = tb.TradingBot(self.client, "BTCUSDT")
-		self.trading_bots.append(bot)
-		bot.start()
+		self.symbols=['BNBUSDT', 'BTCUSDT', 'ADAUSDT', 'DOTUSDT', 'LITUSDT']
 
+
+	def run(self):
+
+		for symbol in (self.symbols):
+
+			bot = tb.TradingBot(self.client, symbol)
+			bot.start()
+
+			self.BOTS.append(bot)
+			break
 
 if __name__ == "__main__":
 
