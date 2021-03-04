@@ -1,16 +1,10 @@
 import time
 import pprint
-import datetime
-import talib
-import numpy
 import threading
 import json
 import queue
 import collections
 import pprint
-import websocket
-import talib
-import tkinter as tk
 
 import os
 import sys
@@ -18,7 +12,6 @@ import sys
 sys.path[0] = os.path.dirname(sys.path[0])
 
 
-from tkinter import *
 from binance.enums import *
 from binance.client import Client
 from binance.exceptions import BinanceAPIException, BinanceOrderException
@@ -26,6 +19,7 @@ from binance.exceptions import BinanceAPIException, BinanceOrderException
 import binanceApi.crawler.priceCrawler as pc
 import binanceApi.crawler.candleCrawler as cc
 import binanceApi.tradingBot.tradingBot as tb
+import binanceApi.tradingBot.alertBot as ab
 
 
 
@@ -41,15 +35,44 @@ class MainApplication:
 		self.symbols=['BNBUSDT', 'BTCUSDT', 'ADAUSDT', 'DOTUSDT', 'LITUSDT']
 
 
+
 	def run(self):
+		print("main run")
 
 		for symbol in (self.symbols):
 
 			bot = tb.TradingBot(self.client, symbol)
-			bot.start()
-
 			self.BOTS.append(bot)
+			# bot.start()
 			break
+
+		bot.order_maker.create_order_buy_market()
+		# self.alert_bot.alert()
+
+		#TESTING PURPOSE
+		# orders = self.client.get_all_orders(symbol='BNBUSDT', limit=10)
+
+		# order_status = self.client.get_order(
+		#     symbol='BNBUSDT',
+		#     orderId='1629496042')
+
+		# fees = self.client.get_trade_fee()
+
+		# #TESING PURPOSE
+		# order = client.create_order(
+  #   symbol='BNBBTC',
+  #   side=SIDE_BUY,
+  #   type=ORDER_TYPE_LIMIT,
+  #   timeInForce=TIME_IN_FORCE_GTC,
+  #   quantity=1,
+  #   price=100)
+
+
+		# # pprint.pprint(order_status)
+		# # pprint.pprint(orders[:])
+		# pprint.pprint(fees)
+
+		
 
 if __name__ == "__main__":
 
@@ -58,8 +81,6 @@ if __name__ == "__main__":
 
 	main = MainApplication(apiKey, apiSecret)
 	main.run()
-
-
 	
 
 
