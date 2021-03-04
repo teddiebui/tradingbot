@@ -26,6 +26,8 @@ class CandleCrawler:
 		self.ws = None
 		self.is_running = False
 
+		print("---candle crawler created")
+
 	def candle_initiation(self):
 
 		# return list
@@ -41,11 +43,6 @@ class CandleCrawler:
 
 
 		return candles, closes[:-1] 
-
-	def get_candle(self):
-
-		pass
-
 
 	def start_crawling(self, callback = None):
 
@@ -83,12 +80,9 @@ class CandleCrawler:
 
 	def _wss_on_message(self, ws, msg, callback):
 
-		print("..received")
 		msg = json.loads(msg)
 
 		if msg['k']['x'] == True:
-			pprint.pprint(msg)
-
 			candle = {
 						'open' : float(msg['k']['o']), 
 						'high' : float(msg['k']['h']), 
