@@ -23,7 +23,7 @@ class Indicator():
 		self.plus_di = []
 		self.minus_di = []
 
-		print("indicator created")
+		print("...indicator created")
 
 	def refresh_rsi(self, close_list):
 
@@ -95,6 +95,9 @@ class Indicator():
 		print("adx: ", self.adx[-4:])
 		print("+di: ", self.plus_di[-4:])
 		print("-di: ", self.minus_di[-4:])
+
+		print()
+		print("---------------------")
 
 
 
