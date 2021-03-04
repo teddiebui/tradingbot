@@ -10,31 +10,32 @@ from binance.exceptions import BinanceAPIException, BinanceOrderException
 
 from ..crawler import candleCrawler as cc
 from ..indicator import indicator as ind
-from ..priceMaker import priceMaker as pm
+from ..orderMaker import orderMaker as om
+
+from .alertBot import AlertBot
 
 class TradingBot(threading.Thread):
 
 	def __init__(self, client, symbol):
-
 		threading.Thread.__init__(self)
-
-		self.OVERBOUGHT_THRESHOLD = 70
-		self.OVERSOLD_THRESHOLD = 30
-
 
 		self.client = client
 		self.symbol = symbol
 
+		self.alert_bot = AlertBot()
 		self.indicator = ind.Indicator()
 		self.candle_crawler = cc.CandleCrawler(client, symbol) #initiate candle crawler for the bot
-		self.price_maker = pm.PriceMaker()
+		self.order_maker = om.OrderMaker(client, 
+										symbol, 
+										stake=100, 
+										take_profit=0.01, 
+										stop_loss=0.01, 
+										fee=0.001, 
+										discount = 0.25)
+		
+		self.ORDERS = []
 
-		#indicator lists
-		self.rsi = []
-		self.macd = []
-		self.macd_signal = []
-		self.macd_hist = []
-
+		print("...trading bot created")
 		self._refresh_indicator() #initiate indicator lists
 
 	def crawl_klines(self):
@@ -60,33 +61,13 @@ class TradingBot(threading.Thread):
 		validate_rsi = self.indicator.validate_rsi()
 		validate_macd = self.indicator.validate_macd()
 
+		if validate_rsi == True:
+			self.alert_bot.alert()
 		if validate_rsi == True and validate_macd == True:
-			self.order_buy_market()
+			self.alert_bot.alert()
+			# order = self.order_maker.create_order_buy_market()
 
 
-
-	def order_buy_market(self):
-
-		print("buy market")
-
-		self.oder_sell_limit() # take profit
-		self.order_stop_limit() # stop loss
-
-	def order_buy_limit(self):
-	
-		print("buy limit")
-
-		self.oder_sell_limit() # take profit
-		self.order_stop_limit()  #stop loss
-
-	def order_take_profit(self):
-
-		print("take profit")
-
-	def order_stop_loss(self):
-
-
-		print("stop loss")
 
 	def run(self):
 		self.crawl_klines()
