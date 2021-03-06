@@ -27,13 +27,14 @@ class TradingBot(threading.Thread):
 		self.candle_crawler = cc.CandleCrawler(client, symbol) #initiate candle crawler for the bot
 		self.order_maker = om.OrderMaker(client, 
 										symbol, 
-										stake=100, 
+										stake=20, 
 										take_profit=0.01, 
 										stop_loss=0.01, 
 										fee=0.001, 
 										discount = 0.25)
-		
-		self.ORDERS = []
+
+		self.test_mode = False
+		self.algorithm = None
 
 		print("...trading bot created")
 		self._refresh_indicator() #initiate indicator lists
@@ -53,28 +54,64 @@ class TradingBot(threading.Thread):
 		self.indicator.refresh_dmi(self.candle_crawler.candles)
 
 		# check for buying signal
-		print(self._check_if_can_buy())
-
+		if self.test_mode == True:
+			self._back_test_algorithm(self.algorithm, self.order_maker._back_test_callback)
+		else:
+			self._check_if_can_buy()
 
 	def _check_if_can_buy(self):
+		#TODO: finish trading algorithm for bot
 
 		validate_rsi = self.indicator.validate_rsi()
 		validate_macd = self.indicator.validate_macd()
 
-		if validate_rsi == True:
-			self.alert_bot.alert()
-		if validate_rsi == True and validate_macd == True:
-			self.alert_bot.alert()
-			# order = self.order_maker.create_order_buy_market()
+		try:
 
+			if validate_rsi == True:
+				self.alert_bot.alert()
+
+			if validate_rsi == True and validate_macd == True:
+				self.alert_bot.alert()
+
+			# self.order_maker.create_order_buy_market()
+		except KeyboardInterrupt:
+			print("...alert sound stopped!!!")
+
+	def _back_test_algorithm(self, algoritm, make_order_callback):
+
+		print("back test algorithm")
+
+		signal = self.algorithm.run(self.candle_crawler.candles, self.indicator)
+
+		if signal == True:
+			make_order_callback()
+
+		self.order_maker.back_test_log()
+
+	def log(self):
+
+		# history = self.client.get_all_orders(symbol=self.symbol) [-3:]
+		self.order_maker.log()
 
 
 	def run(self):
-		self.crawl_klines()
+		
+		if self.test_mode == False:
+			self.crawl_klines()
+		else:
+			self._back_test_algorithm(self.algorithm, self.order_maker._back_test_callback)
+
+	
+
 
 	def stop(self):
+
 		self.candle_crawler.stop()
+		self.order_maker.stop()
+		print("..bot stopped")
 		pass
+
+
 
 
 
