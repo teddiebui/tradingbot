@@ -172,7 +172,7 @@ class OrderMaker(pm.PriceMaker):
 					minute = date_time.minute,
 					second = date_time.second
 				)
-		
+
 		with open(os.path.join(directory_path, path), 'w', encoding='utf-8') as file:
 			json.dump(self.orders,file)
 
@@ -182,7 +182,7 @@ class OrderMaker(pm.PriceMaker):
 
 		directory_path = os.path.dirname(os.path.dirname(__file__))
 
-		os.makedirs(directory_path+"\\loggings". exist_ok = True)
+		os.makedirs(directory_path+"\\test". exist_ok = True)
 
 		date_time = datetime.datetime.fromtimestamp(round(time.time()))
 
