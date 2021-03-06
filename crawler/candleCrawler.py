@@ -4,6 +4,7 @@ import time
 import pprint
 import queue
 import json
+import datetime
 
 
 from binance.client import Client
@@ -31,7 +32,9 @@ class CandleCrawler:
 	def candle_initiation(self):
 
 		# return list
+		a = time. time()
 		klines = self.client.get_historical_klines(self.symbol.upper(), Client.KLINE_INTERVAL_1MINUTE, "1 day ago UTC")
+		b = time.time()
 		candles = [{
 						'open' : float(i[1]), 
 						'high' : float(i[2]), 
@@ -39,9 +42,15 @@ class CandleCrawler:
 						'close' :float(i[4])
 					} for i in klines]
 
+		c = time.time()
 		closes = [float(i[4]) for i in klines]
+		d = time.time()
 
-
+		print("\t\tlen(klines): ", len(klines))
+		print("\t\tlen(candles): ", len(candles))
+		print("\t\tlen(closes): ", len(closes))
+		print(b,c,d)
+		print("total: {:000.02f}, fetch time: {:000.02f}, _candles: {:000.02f}, _closes: {:000.02f}".format(time.time()-a, b-a, c-b, d-c))
 		return candles, closes[:-1] 
 
 	def start_crawling(self, callback = None):
@@ -83,6 +92,7 @@ class CandleCrawler:
 		msg = json.loads(msg)
 
 		if msg['k']['x'] == True:
+			pprint.pprint(msg)
 			candle = {
 						'open' : float(msg['k']['o']), 
 						'high' : float(msg['k']['h']), 
@@ -99,9 +109,12 @@ class CandleCrawler:
 			callback()
 
 	def stop(self):
-
-		self.ws.keep_running = False
-		self.is_running = False
+		
+		if self.ws:
+			self.ws.keep_running = False
+			self.is_running = False
+			print("candle crawler stopped")
 
 if __name__ == "__main__":
+	
 	pass
