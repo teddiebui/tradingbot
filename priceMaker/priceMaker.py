@@ -8,38 +8,43 @@ class PriceMaker():
 		self.take_profit = take_profit
 		self.stop_loss = stop_loss
 		self.fee = fee
-		self.discount = discount	
+		self.discount = discount
+
 		print("...price maker created")
 
-	def get_break_even_price(self):
+	def get_break_even_price(self, buy_price):
 
 		fee = self.fee*(1-self.discount)
-		price = self.stake*(1+fee)/(1-fee)
-		price = math.ceil(price*10000)/10000 # round up to 4 decimal points of float
+		price = buy_price*(1+fee)/(1-fee)
+		price = math.ceil(price*1.00001*10000)/10000 # round up to 4 decimal points of float
 		return price
 
-	def get_take_profit_price(self):
+	def get_take_profit_price(self, buy_price):
 
 		fee = self.fee*(1-self.discount)
-		price = self.stake*(1+fee)/(1-fee) + self.take_profit*self.stake/(1-fee)
-		price = math.ceil(price*10000)/10000 # round up to 4 decimal points of float
+		price =buy_price*(1+fee)/(1-fee) + self.take_profit*buy_price/(1-fee)
+		price = math.ceil(price*1.00001*10000)/10000 # round up to 4 decimal points of float
 		return price
 
-	def get_stop_loss_price(self):
+	def get_stop_loss_price(self, buy_price):
 
 		fee = self.fee*(1-self.discount)
-		price = self.stake*(1+fee)/(1-fee) - self.take_profit*self.stake/(1-fee)
-		price = math.ceil(price*10000)/10000 # round up to 4 decimal points of float
+		price = buy_price*(1+fee)/(1-fee) - 1/(1+self.stop_loss)/100*buy_price/(1-fee)
+		price = math.ceil(price*1.00001*10000)/10000 # round up to 4 decimal points of float
 		return price
 
 if __name__ == "__main__":
 
 	# back testing
-	
-	pm = PriceMaker()
-	pm.discount = 0
+	p = PriceMaker(stake=20, 
+										take_profit=0.01, 
+										stop_loss=0.01, 
+										fee=0.001, 
+										discount = 0.25)
 
-	print(pm.get_break_even_price())
-	print(pm.get_take_profit_price())
-	print(pm.get_stop_loss_price())
+	buy_price = 224.7233
+
+	print(p.get_take_profit_price(buy_price))
+	print(p.get_stop_loss_price(buy_price))
+
 
