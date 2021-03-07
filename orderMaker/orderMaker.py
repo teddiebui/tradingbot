@@ -22,7 +22,7 @@ class OrderMaker(pm.PriceMaker):
 		print("...order maker created")
 		self.orders = {}
 
-	def create_order_buy_market(self):
+	def buy(self):
 
 
 		if self.is_in_position == False:
@@ -128,16 +128,11 @@ class OrderMaker(pm.PriceMaker):
 				for trans in transactions:
 					if trans['status'] == 'FILLED':
 						self.orders[order_market_buy['orderId']].append(trans)
-						pprint.pprint(self.orders[order_market_buy['orderId']])
 						self.is_in_position = False
 						self._log_temp()
 						print("...order sell finished")	
 
 						return
-
-	def stop(self):
-		#TODO: cancel any
-		print("order maker stop")
 
 	def _get_buy_price(self, order):
 
@@ -151,15 +146,12 @@ class OrderMaker(pm.PriceMaker):
 
 		return math.ceil(totalVolume/totalQty*10000)/10000, totalQty
 
-	def _back_test_callback(self):
-
-		print("....place fake order")
 
 	def log(self):
 
 		directory_path = os.path.dirname(os.path.dirname(__file__))
 
-		os.makedirs(directory_path+"\\loggings". exist_ok = True)
+		os.makedirs(directory_path+"\\loggings", exist_ok = True)
 
 		date_time = datetime.datetime.fromtimestamp(round(time.time()))
 
@@ -178,11 +170,67 @@ class OrderMaker(pm.PriceMaker):
 
 		print("order maker logged")
 
+	def _log_temp(self):
+
+
+		directory_path = os.path.dirname(os.path.dirname(__file__))
+
+		os.makedirs(directory_path+"\\loggings", exist_ok = True)
+
+		with open(
+				os.path.join(directory_path,"loggings\\temp_order_log_.json"),'w', encoding='utf-8') as file:
+			json.dump(self.orders,file)
+
+		print("temporarily logged")
+
+	def fake_buy(self, buy_price):
+		#create order market buy 
+		order_market_buy = {'orderId' : len(self.orders) + 1, 'price' :  str(buy_price)}
+		self.is_in_position = True
+
+		
+		#crete order oco sell
+		take_profit_price = self.get_take_profit_price(buy_price)
+		stop_loss_price =  self.get_stop_loss_price(buy_price)
+
+		# print("buy price: ", buy_price)
+		# print("stop loss: ", stop_loss_price)
+		# print("take profit: ", take_profit_price)
+
+
+		order_oco_sell =  [{'type' : 'LIMIT_MAKER', 'status' : 'NEW', 'price' : str(take_profit_price)}, 
+		{'type' : 'STOP_LOSS_LIMIT', 'status' : 'NEW', 'price' : str(stop_loss_price)}]
+
+		self._fake_open_orders = (order_market_buy['orderId'], order_oco_sell)
+
+		self.orders[order_market_buy['orderId']] = [order_market_buy]
+
+
+		
+
+	def check_current_fake_position(self, candle):
+
+		if float(self._fake_open_orders[1][0]['price']) <= candle['high']:
+			filled = self._fake_open_orders[1][0]
+			filled['status'] = 'FILLED'
+			self.orders[self._fake_open_orders[0]].append(filled)
+			self.is_in_position = False
+			del self._fake_open_orders
+		elif float(self._fake_open_orders[1][1]['price']) >= candle['low']:
+			filled = self._fake_open_orders[1][1] 
+			filled['status'] = 'FILLED'
+			self.orders[self._fake_open_orders[0]].append(filled)
+			self.is_in_position = False
+			del self._fake_open_orders
+		else:
+			pass
+			
+
 	def back_test_log(self):
 
 		directory_path = os.path.dirname(os.path.dirname(__file__))
 
-		os.makedirs(directory_path+"\\test". exist_ok = True)
+		os.makedirs(directory_path+"\\test", exist_ok = True)
 
 		date_time = datetime.datetime.fromtimestamp(round(time.time()))
 
@@ -201,20 +249,9 @@ class OrderMaker(pm.PriceMaker):
 
 		print("back test order logged")
 
-
-
-	def _log_temp(self):
-
-
-		directory_path = os.path.dirname(os.path.dirname(__file__))
-
-		os.makedirs(directory_path+"\\loggings". exist_ok = True)
-
-		with open(
-				os.path.join(directory_path,"loggings\\temp_order_log_.json"),'w', encoding='utf-8') as file:
-			json.dump(self.orders,file)
-
-		print("temporarily logged")
+	def stop(self):
+		#TODO: cancel any
+		print("order maker stop")
 
 
 if __name__ == "__main__":
