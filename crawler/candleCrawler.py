@@ -2,9 +2,9 @@ import threading
 import websocket
 import time
 import pprint
-import queue
 import json
 import datetime
+from collections import deque
 
 
 from binance.client import Client
@@ -22,7 +22,7 @@ class CandleCrawler:
 
 		self.THREADS = []
 
-		self.candles, self.closes = self.candle_initiation()
+		self.candles = self.candle_initiation()
 
 		self.ws = None
 		self.is_running = False
@@ -31,27 +31,17 @@ class CandleCrawler:
 
 	def candle_initiation(self):
 
-		# return list
-		a = time. time()
+		# return  a list
 		klines = self.client.get_historical_klines(self.symbol.upper(), Client.KLINE_INTERVAL_1MINUTE, "1 day ago UTC")
-		b = time.time()
-		candles = [{
+
+		candles = deque(maxlen= 1440) #doubly ended queue
+		candles.extend([{
 						'open' : float(i[1]), 
 						'high' : float(i[2]), 
 						'low' : float(i[3]), 
 						'close' :float(i[4])
-					} for i in klines]
-
-		c = time.time()
-		closes = [float(i[4]) for i in klines]
-		d = time.time()
-
-		print("\t\tlen(klines): ", len(klines))
-		print("\t\tlen(candles): ", len(candles))
-		print("\t\tlen(closes): ", len(closes))
-		print(b,c,d)
-		print("total: {:000.02f}, fetch time: {:000.02f}, _candles: {:000.02f}, _closes: {:000.02f}".format(time.time()-a, b-a, c-b, d-c))
-		return candles, closes[:-1] 
+						} for i in klines][:-1])
+		return candles
 
 	def start_crawling(self, callback = None):
 
@@ -71,42 +61,34 @@ class CandleCrawler:
 											on_open = lambda ws: self._wss_on_open(ws),
 											on_error = lambda ws, error: self._wss_on_error(ws, error),
 											on_close = lambda ws: self._wss_on_close(ws),
-											on_message = lambda ws,msg: self._wss_on_message(ws, msg, callback))
+											on_message = lambda ws,msg: self._wss_on_message(ws, msg, callback1, callback2))
 		self.ws.run_forever()
 
 
 	def _wss_on_open(self, ws):
-
-		print("open")
+		pass
 
 	def _wss_on_close(self, ws):
-
-		print("close")
+		pass
 
 	def _wss_on_error(self, ws, error):
-
 		print("error: ", error)
 
-	def _wss_on_message(self, ws, msg, callback):
+	def _wss_on_message(self, ws, msg, callback1, callback2):
 
 		msg = json.loads(msg)
+		
 
 		if msg['k']['x'] == True:
-			pprint.pprint(msg)
-			candle = {
-						'open' : float(msg['k']['o']), 
+			candle = 	{'open' : float(msg['k']['o']), 
 						'high' : float(msg['k']['h']), 
 						'low' : float(msg['k']['l']), 
-						'close' :float(msg['k']['c'])
-					}
+						'close' :float(msg['k']['c'])}
 
 			self.candles.append(candle)
-			self.closes.append(float(msg['k']['c']))
 
-			if len(self.closes) > 1440:
-				del self.closes[0]
-
-			callback()
+			callback1()
+		callback2(float(msg['k']['c']))
 
 	def stop(self):
 		

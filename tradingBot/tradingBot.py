@@ -3,6 +3,8 @@ import pprint
 import threading
 import time
 import datetime
+import os
+import re
 
 from binance.client import Client
 from binance.exceptions import BinanceAPIException, BinanceOrderException
@@ -15,21 +17,22 @@ from .alertBot import AlertBot
 
 class TradingBot(threading.Thread):
 
-	def __init__(self, client, symbol, algorithm, order_maker = None, test_mode = False):
+	def __init__(self, client, symbol, algorithm = None, order_maker = None, test_mode = False):
 		threading.Thread.__init__(self)
 		self.is_running = False
 
+		#initiating fields
 		self.test_mode = test_mode
 		self.client = client
 		self.symbol = symbol
 		self.algorithm = algorithm
+		self.order_maker = order_maker
 
 		#initiating objects
 		self.alert_bot = AlertBot()
 		self.indicator = ind.Indicator()
-		self.order_maker = order_maker
-
-		if test_mode == False:
+		
+		if not test_mode:
 			self.candle_crawler = cc.CandleCrawler(client, symbol)
 			self._refresh_indicator() #initiate indicator lists
 
@@ -39,7 +42,7 @@ class TradingBot(threading.Thread):
 	def crawl_klines(self):
 
 		# CALCULATE EVERY MINTUE
-		self.candle_crawler.start_crawling(callback=self._refresh_indicator)
+		self.candle_crawler.start_crawling(callback1=self._refresh_indicator, callback2=self.order_maker.check_current_position)
 		
 	def _refresh_indicator(self):
 
@@ -47,29 +50,112 @@ class TradingBot(threading.Thread):
 		# refreshes indicator after receiving new candle
 		self.indicator.update(self.candle_crawler.candles)
 
-		# check for buying signal
-		if self.test_mode == False:
+		if not self.order_maker.is_in_position:
 			self._check_if_can_buy()
 
 	def _check_if_can_buy(self):
 
 		#TODO: finish trading algorithm for bot
-		if not self.order_maker.is_in_position :
+		if not self.order_maker.is_in_position:
+			# find a signal to buy if currently not in position
 			signal = self.algorithm.run(self.candle_crawler.candles, self.indicator)
 			if signal == True:
 				#MAKE ORDER
 				pass
 
-
 	def _back_test_algorithm(self):
 
-		print("back test the given algorithm")
-		import os
 		import json
 		from collections import deque
-		import re
+		
 
-		#GET PATH TO DIRECTORY "C:\users\{path_to_your_binanceApi}\candle_data\{symbol}\"
+		candles = deque(maxlen = 400)
+		counter = 0
+		files = self._get_json_data_from_storage()
+		directory_path = os.path.dirname(os.path.dirname(__file__)) + "\\candle_data\\" + self.symbol.lower()
+
+		
+		total = time.time()
+		candle_time = 0
+		algorithm_time = 0
+		order_time = 0
+		load_json = 0	
+
+		#MAIN START HERE
+		#TODO: load json data
+		for file in files:
+			file = directory_path + "\\" + file
+
+			with open(file, "r") as f:
+				a = time.time()
+				klines = json.load(f)
+				print(file)
+				print("load json file time: ", time.time() - a)
+
+				# a=time.time()
+				klines = self.client.get_historical_klines(self.symbol.upper(), Client.KLINE_INTERVAL_15MINUTE, "360 day ago UTC")
+				# print("load json data time: {:0.02f}".format(time.time()-a))
+				# load_json = time.time() - a
+				#TODO: loop thru candle lines. For each candle, update indicator and run algorithm
+				for each in klines[:]:
+					if self.is_running == False:
+						return
+					# print(datetime.datetime.fromtimestamp(float(each[0])/1000))
+
+					a=time.time()
+					candle = {'time' : float(each[0]),
+							'open' : float(each[1]), 
+							'high' : float(each[2]), 
+							'low' : float(each[3]), 
+							'close' :float(each[4])
+					}
+
+					candles.append(candle)
+					candle_time += (time.time() - a)
+
+					if not self.order_maker.is_in_position:
+						#TODO: run algorithm
+						c=time.time()
+						signal = self.algorithm.run(candles, self.indicator)
+						algorithm_time += (time.time() - c)
+						d = time.time()
+
+						if signal == True:
+								#create fake order if signal is true
+								self.order_maker.buy(buy_price=candle['close'], test_mode = self.test_mode)
+								print(datetime.datetime.fromtimestamp(float(candle['time'])/1000), "...place fake order, buy price: ", candle['close'])
+					else:
+						self.order_maker.check_current_position(candle['close'])
+						if not self.order_maker.is_in_position:
+
+							print(datetime.datetime.fromtimestamp(float(candle['time'])/1000), "...{}, price: {},candle low: {}, candle high: {}".format(
+								self.order_maker.orders[len(self.order_maker.orders)][1]['type'],
+								self.order_maker.orders[len(self.order_maker.orders)][1]['price'],
+								candle['low'],
+								candle['high']))
+							# pprint.pprint(self.order_maker.orders[len(self.order_maker.orders)])
+
+					order_time += (time.time() - d)
+
+				#on inner loop exit, do back test log
+				self.order_maker.back_test_log()
+				self.report()
+
+				#debug
+				print("total: {:0.04f}--load_json: {:0.02f}--candle: {:0.04f}--algorithm: {:0.02f}--order: {:0.02f}".format(
+						time.time() - total,
+						load_json,
+						candle_time,
+						algorithm_time,
+						order_time)
+						)
+			return
+
+		return
+		
+	def _get_json_data_from_storage(self):
+		#for back test at a long period
+
 		directory_path = os.path.dirname(os.path.dirname(__file__)) + "\\candle_data\\" + self.symbol.lower()
 
 		#SORT ALL THE FILES IN DIRECTORY ABOVE
@@ -83,104 +169,8 @@ class TradingBot(threading.Thread):
 		files = os.listdir(directory_path)
 		files.sort(key=callback)
 
-		#INITIATION
+		return files
 
-		candles = deque(maxlen = 120)
-		counter = 0
-
-		#MAIN START HERE
-		#TODO: loop thru every json file
-		for file in files[11:]:
-			file = directory_path+"\\"+file
-			if os.path.isfile(file) and file.endswith(".json"):
-				total = time.time()
-				candle_time = 0
-				algorithm_time = 0
-				order_time = 0
-				load_json = 0
-
-
-
-				#TODO: load json data
-
-				with open(file, "r") as json_file:
-					a=time.time()
-					# klines = self.client.get_historical_klines(self.symbol.upper(), Client.KLINE_INTERVAL_1MINUTE, "30 day ago UTC")
-					klines = json.load(json_file)
-					print("load json file time: {:0.02f}".format(time.time()-a))
-					print(file)
-					load_json = time.time() - a
-
-
-				#TODO: loop thru candle lines. For each candle, update indicator and run algorithm
-
-				for each in klines[:]:
-					if self.is_running == False:
-						return
-					# print(datetime.datetime.fromtimestamp(float(each[0])/1000))
-					a=time.time()
-					candle = {
-						'time' : float(each[0]),
-						'open' : float(each[1]), 
-						'high' : float(each[2]), 
-						'low' : float(each[3]), 
-						'close' :float(each[4])
-					}
-					candles.append(candle)
-					candle_time += (time.time() - a)
-
-					
-					if not self.order_maker.is_in_position:
-
-						#TODO: run algorithm
-						c=time.time()
-						signal = self.algorithm.run(candles, self.indicator)
-						algorithm_time += (time.time() - c)
-						d = time.time()
-
-
-						if signal == True:
-
-								#create fake order if signal is true
-								self.order_maker.fake_buy(candle['close'])
-								print(datetime.datetime.fromtimestamp(float(candle['time'])/1000), "...place fake order, buy price: ", candle['close'])
-					else:
-						self.order_maker.check_current_fake_position(candle)
-						if not self.order_maker.is_in_position:
-							print(datetime.datetime.fromtimestamp(float(candle['time'])/1000), "...{}, price: {},candle low: {}, candle high: {}".format(
-								self.order_maker.orders[len(self.order_maker.orders)][1]['type'],
-								self.order_maker.orders[len(self.order_maker.orders)][1]['price'],
-								candle['low'],
-								candle['high'])
-							)
-							# pprint.pprint(self.order_maker.orders[len(self.order_maker.orders)])
-
-					order_time += (time.time() - d)
-
-					#DEBUG
-					# print("total: {:0.02f}--candle: {:0.02f}--update: {:0.02f}--algorithm: {:0.02f}--datetime: {}".format(
-					# 	time.time() - a,
-					# 	b-a,
-					# 	c-b,
-					# 	d-c,
-					# 	str(datetime.datetime.fromtimestamp(float(each[0])/1000))
-					# 	))
-
-					
-
-				#on inner loop exit, do back test log
-				self.order_maker.back_test_log()
-				self.report()
-				print("total: {:0.04f}--load_json: {:0.02f}--candle: {:0.04f}--algorithm: {:0.02f}--order: {:0.02f}".format(
-						time.time() - total,
-						load_json,
-						candle_time,
-						algorithm_time,
-						order_time)
-						)
-
-		return
-		
 
 	def log(self):
 
@@ -222,6 +212,8 @@ class TradingBot(threading.Thread):
 				count += 1
 
 		metadata = {
+			'pnlPercentage' : (gain*100*self.order_maker.take_profit) - (loss * 100 * self.order_maker.stop_loss),
+			'symbol' : self.symbol,
 			'orders' : count,
 			'gain' : gain,
 			'loss' : loss,

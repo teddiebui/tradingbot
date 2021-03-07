@@ -6,7 +6,7 @@ class Indicator():
 
 	def __init__(self):
 		#rsi indicator variables
-		self.OVERSOLD_THRESHOLD = 16
+		self.OVERSOLD_THRESHOLD = 30
 		self.OVERBOUGHT_THRESHOLD = 70
 		self.rsi = []
 
@@ -53,10 +53,7 @@ class Indicator():
 	def refresh_rsi(self, close_list):
 
 		# CALCULATE by callback function _refresh_indicator
-		self.rsi = list(talib.RSI(numpy.array(close_list)))
-		# just for prettifying
-		self.rsi = list(map(lambda x: round(x,2), self.rsi))	
-		
+		self.rsi = talib.RSI(numpy.array(close_list))
 
 	def refresh_macd(self, close_list):
 
@@ -67,42 +64,27 @@ class Indicator():
 			slowperiod=26, 
 			signalperiod=9)
 
-		# just for prettifying
-		self.macd = list(map(lambda x: round(x,4), self.macd))
-		self.macd_signal = list(map(lambda x: round(x,4), self.macd_signal))
-		self.macd_hist = list(map(lambda x: round(x,4), self.macd_hist))
-
 	def refresh_ema_200(self, close_list):
 
 		# CALCULATE by callback function _refresh_indicator
 		self.ema_200 = talib.EMA(numpy.array(close_list),200)
-		# just for prettifying
-		self.ema_200 = list(map(lambda x: round(x,2), self.ema_200))
 
 	def refresh_dmi(self, candles):
 
 		# CALCULATE by callback function _refresh_indicator
-		self.adx = talib.ADX(
-			numpy.array([i['high'] for i in candles]),
-			numpy.array([i['low'] for i in candles]),
-			numpy.array([i['close'] for i in candles]),
-			14)
-		self.plus_di = talib.PLUS_DI(
-			numpy.array([i['high'] for i in candles]),
-			numpy.array([i['low'] for i in candles]),
-			numpy.array([i['close'] for i in candles]),
-			14)
-		self.minus_di = talib.MINUS_DI(
-			numpy.array([i['high'] for i in candles]),
-			numpy.array([i['low'] for i in candles]),
-			numpy.array([i['close'] for i in candles]),
-			14)
 
-		# just for prettifying
-		self.adx = list(map(lambda x: round(x,2), self.adx))
-		self.plus_di = list(map(lambda x: round(x,2), self.plus_di))
-		self.minus_di = list(map(lambda x: round(x,2), self.minus_di))
+		high = []
+		low = []
+		close = []
 
+		for i in candles:
+			high.append(i['high'])
+			low.append(i['low'])
+			close.append(i['close'])
+
+		self.adx = talib.ADX(high, low, close, 14)
+		self.plus_di = talib.PLUS_DI(high, low, close,14)
+		self.minus_di = talib.MINUS_DI(high, low, close,14)
 
 if __name__ == "__main__":
 	pass
