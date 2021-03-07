@@ -166,6 +166,19 @@ class OrderMaker(pm.PriceMaker):
 		return math.ceil(totalVolume/totalQty*10000)/10000, totalQty
 
 
+	def _log_temp(self):
+
+
+		directory_path = os.path.dirname(os.path.dirname(__file__))
+
+		os.makedirs(directory_path+"\\loggings", exist_ok = True)
+
+		with open(
+				os.path.join(directory_path,"loggings\\temp_order_log_.json"),'w', encoding='utf-8') as file:
+			json.dump(self.orders,file)
+
+		print("temporarily logged")
+
 	def log(self):
 
 		directory_path = os.path.dirname(os.path.dirname(__file__))
@@ -188,19 +201,6 @@ class OrderMaker(pm.PriceMaker):
 			json.dump(self.orders,file)
 
 		print("order maker logged")
-
-	def _log_temp(self):
-
-
-		directory_path = os.path.dirname(os.path.dirname(__file__))
-
-		os.makedirs(directory_path+"\\loggings", exist_ok = True)
-
-		with open(
-				os.path.join(directory_path,"loggings\\temp_order_log_.json"),'w', encoding='utf-8') as file:
-			json.dump(self.orders,file)
-
-		print("temporarily logged")
 
 	def back_test_log(self):
 
