@@ -21,7 +21,7 @@ class OrderMaker(pm.PriceMaker):
 		self.is_in_position = False
 		self.current_position = None
 
-		self.orders = {}
+		self.orders = []
 
 
 	def buy(self, test_mode = False, buy_price = 0.00):
@@ -38,9 +38,16 @@ class OrderMaker(pm.PriceMaker):
 						    quoteOrderQty= self.stake)
 				buy_price, quantity = self._get_buy_price(order_market_buy)
 			else:
-				order_market_buy = {'orderId' : len(self.orders) + 1, 'price' :  str(buy_price)}
+				order_market_buy = {'orderId' : str(len(self.orders) + 1), 'price' :  str(buy_price)}
 
-			self.orders[order_market_buy['orderId']] = [order_market_buy]
+			record = {
+				'recordId' : str(len(self.orders) + 1),
+				'recordData': [order_market_buy]
+			}
+
+			self.orders.append(record)
+
+			# self.orders[str(len(self.orders) + 1)] = [order_market_buy]
 
 			
 
@@ -82,10 +89,10 @@ class OrderMaker(pm.PriceMaker):
 										stopLimitPrice=stop_loss_price,  # stop loss price
 										price=take_profit_price)  # take profit price)
 			else:	
-				order_oco_sell =  {'orderReports' : [{'type' : 'STOP_LOSS_LIMIT', 'status' : 'NEW', 'price' : str(take_profit_price)}, 
-									{'type' : 'LIMIT_MAKER', 'status' : 'NEW', 'price' : str(stop_loss_price)}]}
+				order_oco_sell =  {'orderReports' : [{'type' : 'STOP_LOSS_LIMIT', 'price' : str(take_profit_price)}, 
+									{'type' : 'LIMIT_MAKER', 'price' : str(stop_loss_price)}]}
 
-			self.open_orders = { order_market_buy['orderId'] : order_oco_sell['orderReports']} # the list contains 2 dicts of TP and SL order
+			self.open_orders = order_oco_sell['orderReports'] # the list contains 2 dicts of TP and SL order
 			self._log_temp()
 
 			# EXAMPLE OF ORDER OCO SELL JSON
@@ -132,24 +139,41 @@ class OrderMaker(pm.PriceMaker):
 			# 'transactionTime': 1614958606001}
 
 	def check_current_position(self, current_price):
-		if self.is_in_position:
-			for key, value in self.open_orders.items():
-				orderId = key
-				order_oco_sell = value
 
-			stop_loss_order, take_profit_order = order_oco_sell
+		if self.is_in_position:
+			stop_loss_order, take_profit_order = self.open_orders # returns 2 orders 
+			
+			if current_price >= float(take_profit_order['price']):
+				take_profit_order = self.client.get_order(symbol = self.symbol, orderId=take_profit_order['orderId'])
+				if take_profit_order['status'] == 'FILLED':
+					self.orders[-1]['recordData'].append(take_profit_order)
+					self.is_in_position = False
+					del self.open_orders[0]
+					return
+			
+			if current_price <= float(stop_loss_order['price']):
+				stop_loss_order = self.client.get_order(symbol = self.symbol, orderId=stop_loss_order['orderId'])
+				if stop_loss_order['status'] == 'FILLED':
+					self.orders[-1]['recordData'].append(stop_loss_order)
+					self.is_in_position = False
+					del self.open_orders[0]
+					return
+
+	def check_current_fake_position(self, current_price):
+		if self.is_in_position:
+			stop_loss_order, take_profit_order = self.open_orders
 
 			if current_price >= float(take_profit_order['price']):
-				take_profit_order['status'] = 'FILLED'
-				self.orders[orderId].append(take_profit_order)
+				self.orders[-1]['recordData'].append(take_profit_order)
 				self.is_in_position = False
+				del self.open_orders[0]
 				self._log_temp()
 				return
 
 			if current_price <= float(stop_loss_order['price']):
-				stop_loss_order['status'] = 'FILLED'
-				self.orders[orderId].append(stop_loss_order)
+				self.orders[-1]['recordData'].append(stop_loss_order)
 				self.is_in_position = False
+				del self.open_orders[0]
 				self._log_temp()
 				return
 
@@ -228,6 +252,16 @@ class OrderMaker(pm.PriceMaker):
 	def stop(self):
 		#TODO: cancel any
 		print("order maker stop")
+
+	def get_config(self):
+
+		return {
+			'discount': self.discount,
+			'fee': self.fee,
+			'stake': self.stake,
+			'stopLoss': self.stop_loss,
+			'takeProfit': self.take_profit
+		}
 
 
 if __name__ == "__main__":

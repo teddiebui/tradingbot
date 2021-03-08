@@ -18,7 +18,11 @@ from .alertBot import AlertBot
 
 class TradingBot(threading.Thread):
 
-	def __init__(self, client, symbol, algorithm = None, order_maker = None, test_mode = False):
+	def __init__(self, client, symbol, 
+	algorithm = None, 
+	order_maker = None, 
+	indicator = None,
+	test_mode = False):
 		threading.Thread.__init__(self)
 		self.is_running = False
 
@@ -28,32 +32,22 @@ class TradingBot(threading.Thread):
 		self.symbol = symbol
 		self.algorithm = algorithm
 		self.order_maker = order_maker
+		self.indicator = indicator
 
 		#initiating objects
 		self.alert_bot = AlertBot()
-		self.indicator = ind.Indicator()
+		
 		
 		if not test_mode:
 			self.candle_crawler = cc.CandleCrawler(client, symbol)
 			self._refresh_indicator() #initiate indicator lists
-
-		print("...trading bot created")
 		
 
 	def crawl_klines(self):
 
 		# CALCULATE EVERY MINTUE
-		self.candle_crawler.start_crawling(callback1=self._refresh_indicator, callback2=self.order_maker.check_current_position)
+		self.candle_crawler.start_crawling(callback1=self._check_if_can_buy, callback2=self.order_maker.check_current_position)
 		
-	def _refresh_indicator(self):
-
-		# this is a callback function passed to candle crawler object
-		# refreshes indicator after receiving new candle
-		self.indicator.update(self.candle_crawler.candles)
-
-		if not self.order_maker.is_in_position:
-			self._check_if_can_buy()
-
 	def _check_if_can_buy(self):
 
 		#TODO: finish trading algorithm for bot
@@ -71,7 +65,6 @@ class TradingBot(threading.Thread):
 		
 
 		candles = deque(maxlen = 400)
-		counter = 0
 		files = self._get_json_data_from_storage()
 		directory_path = os.path.dirname(os.path.dirname(__file__)) + "\\candle_data\\" + self.symbol.lower()
 
@@ -94,7 +87,7 @@ class TradingBot(threading.Thread):
 				print("load json file time: ", time.time() - a)
 
 				# a=time.time()
-				klines = self.client.get_historical_klines(self.symbol.upper(), Client.KLINE_INTERVAL_15MINUTE, "360 day ago UTC")
+				klines = self.client.get_historical_klines(self.symbol.upper(), Client.KLINE_INTERVAL_1MINUTE, "1 day ago UTC")
 				# print("load json data time: {:0.02f}".format(time.time()-a))
 				# load_json = time.time() - a
 				#TODO: loop thru candle lines. For each candle, update indicator and run algorithm
@@ -126,12 +119,11 @@ class TradingBot(threading.Thread):
 								self.order_maker.buy(buy_price=candle['close'], test_mode = self.test_mode)
 								print(datetime.datetime.fromtimestamp(float(candle['time'])/1000), "...place fake order, buy price: ", candle['close'])
 					else:
-						self.order_maker.check_current_position(candle['close'])
+						self.order_maker.check_current_fake_position(candle['close'])
 						if not self.order_maker.is_in_position:
-
 							print(datetime.datetime.fromtimestamp(float(candle['time'])/1000), "...{}, price: {},candle low: {}, candle high: {}".format(
-								self.order_maker.orders[len(self.order_maker.orders)][1]['type'],
-								self.order_maker.orders[len(self.order_maker.orders)][1]['price'],
+								self.order_maker.orders[-1]['recordData'][1]['type'],
+								self.order_maker.orders[-1]['recordData'][1]['price'],
 								candle['low'],
 								candle['high']))
 							# pprint.pprint(self.order_maker.orders[len(self.order_maker.orders)])
@@ -204,33 +196,31 @@ class TradingBot(threading.Thread):
 		loss = 0
 		gain = 0
 
-		for value in self.order_maker.orders.values():
-			if len(value) == 2:
-				if value[1]['type'] == "STOP_LOSS_LIMIT":
+		for i in self.order_maker.orders:
+			if len(i['recordData']) == 2:
+				if i['recordData'][1]['type'] == "STOP_LOSS_LIMIT":
 					loss += 1
 				else:
 					gain += 1
 				count += 1
+				
 
+		if count > 0:
+			winRate = gain/count
+			pnl = math.pow(1+self.order_maker.take_profit,gain)/math.pow(1+self.order_maker.stop_loss,loss)*100
+		else:
+			winRate = 0
+			pnl = 0
 		metadata = {
-			'pnlPercentage' : math.pow(1+self.order_maker.take_profit,gain)/math.pow(1+self.order_maker.stop_loss,loss)*100,
+			'pnlPercentage' : pnl,
 			'symbol' : self.symbol,
 			'orders' : count,
 			'gain' : gain,
 			'loss' : loss,
-			'winRate' : round(gain/count*100,4),
-			'orderMaker' : {
-				'stake' : self.order_maker.stake,
-				'takeProfit' : self.order_maker.take_profit,
-				'stopLoss' : self.order_maker.stop_loss,
-				'fee'	: self.order_maker.fee,
-				'discount' : self.order_maker.discount}
+			'winRate' : winRate,
+			'orderMaker' : self.order_maker.get_config(),
+			'indicator' : self.indicator.get_config()
 		}
-		# print("-------")
-		# print("orders: ", count)
-		# print("gain: {}/{}".format(gain, count))
-		# print("loss: {}/{}".format(loss, count))
-		# print("win rate: {:0.04f}%".format(gain/count*100))
 
 		pprint.pprint(metadata)
 		

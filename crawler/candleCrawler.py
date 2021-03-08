@@ -27,7 +27,6 @@ class CandleCrawler:
 		self.ws = None
 		self.is_running = False
 
-		print("---candle crawler created")
 
 	def candle_initiation(self):
 

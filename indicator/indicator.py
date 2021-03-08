@@ -4,10 +4,10 @@ import pprint
 
 class Indicator():
 
-	def __init__(self):
+	def __init__(self, oversold_threshold = 30, overbought_threshold = 70):
 		#rsi indicator variables
-		self.OVERSOLD_THRESHOLD = 30
-		self.OVERBOUGHT_THRESHOLD = 70
+		self.oversold_threshold = oversold_threshold
+		self.overbought_threshold = overbought_threshold
 		self.rsi = []
 
 		#macd indicator variables
@@ -34,6 +34,7 @@ class Indicator():
 		self.refresh_ema_200(closes)
 		self.refresh_dmi(candles)
 
+		#DEBUG
 		# print()
 		# print("rsi: ", self.rsi[-4:])
 		# print()
@@ -86,21 +87,51 @@ class Indicator():
 		self.plus_di = talib.PLUS_DI(high, low, close,14)
 		self.minus_di = talib.MINUS_DI(high, low, close,14)
 
-	def validate_rsi(self):
+	def validate_rsi(self, candles):
 		#TODO: write code that check if rsi satisfy buying condition
+
+		self.refresh_rsi([i['close'] for i in candles])
+
+		if self.rsi[-1] < self.oversold_threshold:
+			return True
+		
 		return False
 	
-	def validate_macd(self):
+	def validate_macd(self, candles):
 		#TODO: write code that check if macd satisfy buying condition
-		return False
 
-	def validate_ema(self):
+		self.refresh_macd([i['close'] for i in candles])
+
+		if len(self.macd) < 26:
+			return False
+
+		if self.macd[-2] >= 0 or self.macd_signal[-2] >= 0: #filter
+			return False
+
+		if self.macd[-1] >= 0 or self.macd_signal[-1] >= 0: #filter
+			return False
+
+		cross_over = (self.macd[-2] < self.macd_signal[-2]) and (self.macd[-1] > self.macd_signal[-1])
+		
+		return cross_over
+
+	def validate_ema(self, candles):
 		#TODO: write code that check if ema satisfy buying condition
+		self.refresh_ema_200([i['close'] for i in candles])
+
 		return False
 
-	def validate_dmi(self):
+	def validate_dmi(self, candles):
+
+		self.refresh_dmi(candles)
 		#TODO: write code that check if dmi satisfy buying condition
 		return False
+	
+	def get_config(self):
+		return {
+			'overSoldThreshold': self.oversold_threshold,
+            'overBoughtThreshold': self.overbought_threshold
+		}
 
 if __name__ == "__main__":
 	pass

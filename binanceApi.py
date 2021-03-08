@@ -15,7 +15,7 @@ from binance.enums import *
 from binance.client import Client
 from binance.exceptions import BinanceAPIException, BinanceOrderException
 
-
+import tradingbot.indicator.indicator as ind
 import tradingbot.tradingBot.tradingBot as tb
 import tradingbot.tradingBot.alertBot as ab
 import tradingbot.orderMaker.orderMaker as om
@@ -42,16 +42,19 @@ class MainApplication:
 		order_maker = om.OrderMaker(self.client, 
 									self.symbols[0], 
 									stake=20, 
-									take_profit=0.05, 
-									stop_loss=0.025, 
+									take_profit=0.02, 
+									stop_loss=0.01, 
 									fee=0.001, 
 									discount = 0.25)
+
+		indicator = ind.Indicator(oversold_threshold = 18, overbought_threshold = 70)
 
 		bot = tb.TradingBot(self.client, 
 			self.symbols[0], 
 			self.algorithm, 
 			test_mode = True, 
-			order_maker = order_maker)
+			order_maker = order_maker,
+			indicator = indicator)
 
 		
 		self.BOTS.append(bot)
@@ -76,13 +79,4 @@ if __name__ == "__main__":
 
 	main = MainApplication(apiKey, apiSecret)
 	main.run()
-	try:
-		while True:
-			time.sleep(10)
-	except KeyboardInterrupt as e:
-		
-
-		print('...main program stopped: ',repr(e))
-		main.stop()
-		main.log()
 
