@@ -9,17 +9,19 @@ import os
 import sys
 
 sys.path[0] = os.path.dirname(sys.path[0])
-
+module_name = os.path.basename(sys.path[0])
+pprint.pprint(sys.path)
+print(module_name)
 
 from binance.enums import *
 from binance.client import Client
 from binance.exceptions import BinanceAPIException, BinanceOrderException
 
 
-import binanceApi.tradingBot.tradingBot as tb
-import binanceApi.tradingBot.alertBot as ab
-import binanceApi.orderMaker.orderMaker as om
-from binanceApi.algorithms import *
+import tradingbot.tradingBot.tradingBot as tb
+import tradingbot.tradingBot.alertBot as ab
+import tradingbot.orderMaker.orderMaker as om
+from tradingbot.algorithms import *
 
 class MainApplication:
 

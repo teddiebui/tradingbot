@@ -5,6 +5,7 @@ import time
 import datetime
 import os
 import re
+import math
 
 from binance.client import Client
 from binance.exceptions import BinanceAPIException, BinanceOrderException
@@ -212,7 +213,7 @@ class TradingBot(threading.Thread):
 				count += 1
 
 		metadata = {
-			'pnlPercentage' : (gain*100*self.order_maker.take_profit) - (loss * 100 * self.order_maker.stop_loss),
+			'pnlPercentage' : math.pow(1+self.order_maker.take_profit,gain)/math.pow(1+self.order_maker.stop_loss,loss)*100,
 			'symbol' : self.symbol,
 			'orders' : count,
 			'gain' : gain,
