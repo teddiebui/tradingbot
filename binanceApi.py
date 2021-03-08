@@ -10,8 +10,6 @@ import sys
 
 sys.path[0] = os.path.dirname(sys.path[0])
 module_name = os.path.basename(sys.path[0])
-pprint.pprint(sys.path)
-print(module_name)
 
 from binance.enums import *
 from binance.client import Client

@@ -86,5 +86,21 @@ class Indicator():
 		self.plus_di = talib.PLUS_DI(high, low, close,14)
 		self.minus_di = talib.MINUS_DI(high, low, close,14)
 
+	def validate_rsi(self):
+		#TODO: write code that check if rsi satisfy buying condition
+		return False
+	
+	def validate_macd(self):
+		#TODO: write code that check if macd satisfy buying condition
+		return False
+
+	def validate_ema(self):
+		#TODO: write code that check if ema satisfy buying condition
+		return False
+
+	def validate_dmi(self):
+		#TODO: write code that check if dmi satisfy buying condition
+		return False
+
 if __name__ == "__main__":
 	pass
