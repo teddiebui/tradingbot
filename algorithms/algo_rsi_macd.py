@@ -1,12 +1,12 @@
 from datetime import datetime as dt
 def run(candles, indicator):
 
-	closes = [i['close'] for i in candles]
+	# return False
+	condition1 = indicator.validate_rsi(candles)
+	condition2 = indicator.validate_macd(candles)
 
-	indicator.refresh_rsi(closes)
-
-	indicator.refresh_macd(closes)
-
-	if indicator.rsi[-1] < indicator.OVERSOLD_THRESHOLD:
-		print(dt.fromtimestamp(float(candles[-1]['time'])/1000), indicator.rsi[-1])
+	if condition1 == True and condition2 == True:
 		return True
+
+	# if indicator.validate_rsi(candles) and indicator.validate_macd(candles):
+	# 	return True

@@ -30,7 +30,7 @@ class MainApplication:
 		self.BOTS = []
 		self.THREADS = []
 
-		self.symbols=['BNBUSDT', 'BTCUSDT', 'ADAUSDT', 'DOTUSDT', 'LITUSDT']
+		self.symbols=['BNBUSDT', 'BTCUSDT', 'LUNAUSDT']
 
 		#TEST MODE
 		self.algorithm = algo_rsi
@@ -39,27 +39,29 @@ class MainApplication:
 
 	def run(self):
 
-		order_maker = om.OrderMaker(self.client, 
-									self.symbols[0], 
-									stake=20, 
-									take_profit=0.02, 
-									stop_loss=0.01, 
-									fee=0.001, 
-									discount = 0.25)
+		for symbol in self.symbols[:]:
 
-		indicator = ind.Indicator(oversold_threshold = 18, overbought_threshold = 70)
+			order_maker = om.OrderMaker(self.client, 
+										symbol, 
+										stake=20, 
+										take_profit=0.04, 
+										stop_loss=0.01, 
+										fee=0.001, 
+										discount = 0.25)
 
-		bot = tb.TradingBot(self.client, 
-			self.symbols[0], 
-			self.algorithm, 
-			test_mode = True, 
-			order_maker = order_maker,
-			indicator = indicator)
+			indicator = ind.Indicator(oversold_threshold = 30.666, overbought_threshold = 70)
 
-		
-		self.BOTS.append(bot)
+			bot = tb.TradingBot(self.client, 
+				symbol, 
+				self.algorithm, 
+				test_mode = True, 
+				order_maker = order_maker,
+				indicator = indicator)
+			
+			self.BOTS.append(bot)
 
-		bot.start()
+			bot.start()
+			break
 
 	def log(self):
 
@@ -79,4 +81,15 @@ if __name__ == "__main__":
 
 	main = MainApplication(apiKey, apiSecret)
 	main.run()
+
+	# klines = main.client.get_historical_klines("SFPUSDT", Client.KLINE_INTERVAL_1MINUTE, "8 Feb, 2021")
+	# pprint.pprint(klines[0])
+	try:
+		while True:
+			time.sleep(1)
+	
+	except KeyboardInterrupt:
+		for bot in main.BOTS:
+			bot.stop()
+		
 

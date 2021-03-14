@@ -8,6 +8,7 @@ class Indicator():
 		#rsi indicator variables
 		self.oversold_threshold = oversold_threshold
 		self.overbought_threshold = overbought_threshold
+		self.macd_threshold = 2.0
 		self.rsi = []
 
 		#macd indicator variables
@@ -54,7 +55,10 @@ class Indicator():
 	def refresh_rsi(self, close_list):
 
 		# CALCULATE by callback function _refresh_indicator
-		self.rsi = talib.RSI(numpy.array(close_list))
+		try:
+			self.rsi = talib.RSI(numpy.array(close_list))
+		except Exception as e:
+			pprint.pprint("...refresh_rsi..: ", e)
 
 	def refresh_macd(self, close_list):
 
@@ -93,7 +97,7 @@ class Indicator():
 		self.refresh_rsi([i['close'] for i in candles])
 
 		if self.rsi[-1] < self.oversold_threshold:
-			return True
+			return True, self.rsi[-1]
 		
 		return False
 	
@@ -105,15 +109,19 @@ class Indicator():
 		if len(self.macd) < 26:
 			return False
 
-		if self.macd[-2] >= 0 or self.macd_signal[-2] >= 0: #filter
+		if self.macd[-2] >= -2 or self.macd_signal[-2] >= -2: #filter
+			return False
+			
+		if self.macd[-1] >= -2 or self.macd_signal[-1] >= -2: #filter
 			return False
 
-		if self.macd[-1] >= 0 or self.macd_signal[-1] >= 0: #filter
-			return False
+		a = self.macd[-2] < self.macd[-1]
+		b = self.macd[-2] < self.macd_signal[-1]
 
-		cross_over = (self.macd[-2] < self.macd_signal[-2]) and (self.macd[-1] > self.macd_signal[-1])
-		
-		return cross_over
+		return (self.macd[-2] < self.macd[-1]) and (self.macd[-2] < self.macd_signal[-1])
+
+		# cross_over = (self.macd[-2] < self.macd_signal[-2]) and (self.macd[-1] > self.macd_signal[-1])
+		# return cross_over
 
 	def validate_ema(self, candles):
 		#TODO: write code that check if ema satisfy buying condition

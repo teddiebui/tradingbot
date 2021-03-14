@@ -18,41 +18,50 @@ class CandleCrawler:
 		self.symbol = symbol
 		
 
-		self.WEBSOCKETS = ["wss://stream.binance.com:9443/ws/{}@kline_1m".format(symbol.lower())]
-
+		self.WEBSOCKETS = [
+			"wss://stream.binance.com:9443/ws/{}@kline_1m".format(symbol.lower()),
+			"wss://stream.binance.com:9443/ws/{}@kline_15m".format(symbol.lower())
+			]
 		self.THREADS = []
 
-		self.candles = self.candle_initiation()
+		a = time.time()
+		self.candles_1m = self.candle_initiation(Client.KLINE_INTERVAL_1MINUTE, "1 day ago UTC")
+		self.candles_15m = self.candle_initiation(Client.KLINE_INTERVAL_15MINUTE, "1 day ago UTC")
+		self.candles_30m = []
+		self.candles_1h = self.candle_initiation(Client.KLINE_INTERVAL_1HOUR, "1 day ago UTC")
+		self.candles_2h = []
+		self.candles_4h = self.candle_initiation(Client.KLINE_INTERVAL_1HOUR, "4 day ago UTC")
+		self.candles_1d = []
+		self.candles_3d = []
+		self.candles_1w = []
 
 		self.ws = None
 		self.is_running = False
 
 
-	def candle_initiation(self):
+	def candle_initiation(self,interval, time):
 
 		# return  a list
-		klines = self.client.get_historical_klines(self.symbol.upper(), Client.KLINE_INTERVAL_1MINUTE, "1 day ago UTC")
+		klines = self.client.get_historical_klines(self.symbol.upper(), interval, time)
 
-		candles = deque(maxlen= 1440) #doubly ended queue
-		candles.extend([{
-						'open' : float(i[1]), 
-						'high' : float(i[2]), 
-						'low' : float(i[3]), 
-						'close' :float(i[4])
-						} for i in klines][:-1])
-		return candles
+		return [{'time': float(i[0])/1000,
+				'open' : float(i[1]), 
+				'high' : float(i[2]), 
+				'low' : float(i[3]), 
+				'close' :float(i[4])
+				} for i in klines]
 
-	def start_crawling(self, callback = None):
+	def start_crawling(self, callback1 = None, callback2 = None):
 
 		self.is_running = True
 
-		thread = threading.Thread(target=self._start_crawling_handler, args=(callback, ))
+		thread = threading.Thread(target=self._start_crawling_handler, args=(callback1, callback2))
 		thread.start()
 		self.THREADS.append(thread)
 
 	
 
-	def _start_crawling_handler(self, callback = None):
+	def _start_crawling_handler(self, callback1 = None, callback2 = None):
 
 
 		socket = self.WEBSOCKETS[-1]
@@ -73,21 +82,35 @@ class CandleCrawler:
 	def _wss_on_error(self, ws, error):
 		print("error: ", error)
 
-	def _wss_on_message(self, ws, msg, callback1, callback2):
+	def _wss_on_message(self, ws, msg, callback1 = None, callback2 = None):
 
 		msg = json.loads(msg)
-		
-
-		if msg['k']['x'] == True:
-			candle = 	{'open' : float(msg['k']['o']), 
+		pprint.pprint('hi...' + self.symbol.upper())
+		# pprint.pprint(msg)
+		# pprint.pprint(self.candles_15m)
+		candle = 	{'time': float(msg['k']['t'])/1000,
+						'open' : float(msg['k']['o']), 
 						'high' : float(msg['k']['h']), 
 						'low' : float(msg['k']['l']), 
 						'close' :float(msg['k']['c'])}
+		
+		self.candles_15m[-1] = candle
 
-			self.candles.append(candle)
+		if msg['k']['x'] == True:
+			del self.candles[0]
+			self.candles_15m.append(candle)
 
+
+		if callback1 != None:
 			callback1()
-		callback2(float(msg['k']['c']))
+
+		if callback2 != None:
+			callback2(float(msg['k']['c']))
+
+		
+
+
+		# pprint.pprint([[datetime.datetime.fromtimestamp(i['time']), i['close']] for i in self.candles_15m[-7:]])
 
 	def stop(self):
 		

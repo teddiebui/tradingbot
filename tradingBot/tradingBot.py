@@ -40,7 +40,6 @@ class TradingBot(threading.Thread):
 		
 		if not test_mode:
 			self.candle_crawler = cc.CandleCrawler(client, symbol)
-			self._refresh_indicator() #initiate indicator lists
 		
 
 	def crawl_klines(self):
@@ -53,10 +52,15 @@ class TradingBot(threading.Thread):
 		#TODO: finish trading algorithm for bot
 		if not self.order_maker.is_in_position:
 			# find a signal to buy if currently not in position
-			signal = self.algorithm.run(self.candle_crawler.candles, self.indicator)
-			if signal == True:
-				#MAKE ORDER
-				pass
+			try:
+				signal = self.algorithm.run(self.candle_crawler.candles_15m, self.indicator)
+				print(self.indicator.rsi[-7:])
+				if signal == True:
+					self.alert_bot.run()
+					#MAKE ORDER
+					pass
+			except Exception as e:
+				print("..._chcek if can buy: ", e)
 
 	def _back_test_algorithm(self):
 
@@ -67,7 +71,7 @@ class TradingBot(threading.Thread):
 		candles = deque(maxlen = 400)
 		files = self._get_json_data_from_storage()
 		directory_path = os.path.dirname(os.path.dirname(__file__)) + "\\candle_data\\" + self.symbol.lower()
-
+		# directory_path = []
 		
 		total = time.time()
 		candle_time = 0
@@ -83,13 +87,13 @@ class TradingBot(threading.Thread):
 			with open(file, "r") as f:
 				a = time.time()
 				klines = json.load(f)
-				print(file)
-				print("load json file time: ", time.time() - a)
+				# print(file)
+				# print("load json file time: ", time.time() - a)
 
-				# a=time.time()
-				klines = self.client.get_historical_klines(self.symbol.upper(), Client.KLINE_INTERVAL_1MINUTE, "1 day ago UTC")
-				# print("load json data time: {:0.02f}".format(time.time()-a))
-				# load_json = time.time() - a
+				a=time.time()
+				klines = self.client.get_historical_klines(self.symbol.upper(), Client.KLINE_INTERVAL_15MINUTE, "360 day ago UTC")
+				print("load json data time: {:0.02f}".format(time.time()-a))
+				load_json = time.time() - a
 				#TODO: loop thru candle lines. For each candle, update indicator and run algorithm
 				for each in klines[:]:
 					if self.is_running == False:
@@ -207,7 +211,7 @@ class TradingBot(threading.Thread):
 
 		if count > 0:
 			winRate = gain/count
-			pnl = math.pow(1+self.order_maker.take_profit,gain)/math.pow(1+self.order_maker.stop_loss,loss)*100
+			pnl = math.pow(1+self.order_maker.take_profit,gain)/math.pow(1+self.order_maker.stop_loss,loss)*100 - 100
 		else:
 			winRate = 0
 			pnl = 0
