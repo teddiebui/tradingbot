@@ -205,8 +205,6 @@ class OrderMaker(pm.PriceMaker):
                 os.path.join(directory_path,"loggings\\temp_order_log_.json"),'w', encoding='utf-8') as file:
             json.dump(self.orders,file)
 
-        print("temporarily logged")
-
     def log(self):
 
         directory_path = os.path.dirname(os.path.dirname(__file__))
