@@ -20,6 +20,7 @@ class OrderMaker(pm.PriceMaker):
         self.symbol = symbol
         self.is_in_position = False
         self.current_position = None
+        self.was_stop_loss = False
 
         self.orders = []
 
@@ -147,6 +148,7 @@ class OrderMaker(pm.PriceMaker):
                 if stop_loss_order['status'] == 'FILLED':
                     self.orders[-1]['recordData'].append(stop_loss_order)
                     self.is_in_position = False
+                    self.was_stop_loss = True
                     del self.open_orders[0]
                     return
                     
