@@ -27,11 +27,13 @@ class OrderMaker(pm.PriceMaker):
     def buy(self, test_mode = False, buy_price = 0.00):
 
         if self.is_in_position == False:
+            self.is_in_position = True
 
 
             order_market_buy = self.client.order_market_buy(
                         symbol= self.symbol.upper(),
                         quoteOrderQty= self.stake)
+                        
             buy_price, quantity = self._get_buy_price(order_market_buy)
 
             record = {
@@ -66,12 +68,20 @@ class OrderMaker(pm.PriceMaker):
             # 'transactTime': 1614958605886,
             # 'type': 'MARKET'}
 
-            self.is_in_position = True
-            take_profit_price = self.get_stop_loss_price(buy_price)
-            stop_loss_price = self.get_take_profit_price(buy_price)
+            
+            take_profit_price = self.get_take_profit_price(buy_price)
+            stop_loss_price = self.get_stop_loss_price(buy_price)
+            
 
-            order_oco_sell =  {'orderReports' : [{'type' : 'STOP_LOSS_LIMIT', 'price' : str(take_profit_price)}, 
-                                    {'type' : 'LIMIT_MAKER', 'price' : str(stop_loss_price)}]}
+            order_oco_sell =  self.client.create_oco_order(
+                    symbol=self.symbol,
+                    side=SIDE_SELL,
+                    stopLimitTimeInForce=TIME_IN_FORCE_GTC,
+                    quantity=quantity,
+                    stopLimitPrice = stop_loss_price,
+                    stopPrice= stop_loss_price,
+                    
+                    price=take_profit_price)
 
             self.open_orders = order_oco_sell['orderReports'] # the list contains 2 dicts of TP and SL order
             self._log_temp()
@@ -140,46 +150,6 @@ class OrderMaker(pm.PriceMaker):
                     del self.open_orders[0]
                     return
                     
-                    
-    def fake_buy(self, buy_price):
-        
-        if not self.is_in_position:
-            order_market_buy = {'orderId' : str(len(self.orders) + 1), 'price' :  str(buy_price)}
-
-            record = {
-                'recordId' : str(len(self.orders) + 1),
-                'recordData': [order_market_buy]
-            }
-
-            self.orders.append(record)
-            self.is_in_position = True
-
-            take_profit_price = self.get_stop_loss_price(buy_price)
-            stop_loss_price = self.get_take_profit_price(buy_price)
-            order_oco_sell =  {'orderReports' : [{'type' : 'STOP_LOSS_LIMIT', 'price' : str(take_profit_price)}, 
-                                    {'type' : 'LIMIT_MAKER', 'price' : str(stop_loss_price)}]}
-
-            self.open_orders = order_oco_sell['orderReports'] # the list contains 2 dicts of TP and SL order
-            self._log_temp()
-            
-
-    def check_current_fake_position(self, current_price):
-        if self.is_in_position:
-            stop_loss_order, take_profit_order = self.open_orders
-
-            if current_price >= float(take_profit_order['price']):
-                self.orders[-1]['recordData'].append(take_profit_order)
-                self.is_in_position = False
-                del self.open_orders[0]
-                self._log_temp()
-                return
-
-            if current_price <= float(stop_loss_order['price']):
-                self.orders[-1]['recordData'].append(stop_loss_order)
-                self.is_in_position = False
-                del self.open_orders[0]
-                self._log_temp()
-                return
 
     def _get_buy_price(self, order):
 
@@ -205,7 +175,7 @@ class OrderMaker(pm.PriceMaker):
                 os.path.join(directory_path,"loggings\\temp_order_log_.json"),'w', encoding='utf-8') as file:
             json.dump(self.orders,file)
 
-    def log(self):
+    def log(self, metadata):
 
         directory_path = os.path.dirname(os.path.dirname(__file__))
 
@@ -224,32 +194,10 @@ class OrderMaker(pm.PriceMaker):
                 )
 
         with open(os.path.join(directory_path, path), 'w', encoding='utf-8') as file:
-            json.dump(self.orders,file)
+            json.dump([metadata, self.orders],file)
 
         print("order maker logged")
 
-    def back_test_log(self):
-
-        directory_path = os.path.dirname(os.path.dirname(__file__))
-
-        os.makedirs(directory_path+"\\test", exist_ok = True)
-
-        date_time = datetime.datetime.fromtimestamp(round(time.time()))
-
-        path = "test\\{symbol}_{year}_{month}_{date}_{hour}_{minute}_{second}_order_log.json".format(
-                    symbol=self.symbol, 
-                    year = date_time.year,
-                    month = date_time.month,
-                    date = date_time.day,
-                    hour = date_time.hour,
-                    minute = date_time.minute,
-                    second = date_time.second
-                )
-
-        with open(os.path.join(directory_path, path), 'w', encoding='utf-8') as file:
-            json.dump(self.orders,file)
-
-        print("back test order logged")
 
     def stop(self):
         #TODO: cancel any
@@ -268,32 +216,5 @@ class OrderMaker(pm.PriceMaker):
 
 if __name__ == "__main__":
 
-    symbol = 'BNBUSDT'
-
-    import pprint
-    import datetime
-    
-    from binance.enums import *
-    from binance.client import Client
-    from binance.exceptions import BinanceAPIException, BinanceOrderException
-
-
-    client = Client("TFWFmx5lPFNkkQnEIQsl2596kr1errGmaabzC3bFWI17mifeIYmnBybtU4Opkkyp","kBzXtdMQsOVCrfV9qwyCabshmyALX3ABNjzGJF2a7ZoHF7oh6lzh4gEuvHOwQBSR")
-
-    # orders = client.get_all_orders(symbol='BNBUSDT', limit=5)
-    # pprint.pprint(orders)
-
-    # order = client.get_order(symbol='BNBUSDT', orderId='1630905114')
-    # pprint.pprint(order)
-
-    # trades = client.get_recent_trades(symbol=symbol)
-
-    # trades = client.get_historical_trades(symbol=symbol)
-
-
-    # trades = client.get_aggregate_trades(symbol=symbol)
-
-    trades = client.get_my_trades(symbol=symbol)
-    pprint.pprint(trades)
-
+    pass
     
