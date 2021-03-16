@@ -29,11 +29,10 @@ class TestBot(threading.Thread):
         self.order_maker = order_maker
         self.indicator = indicator
         
-    def _back_test_algorithm(self):
+    def _back_test_algorithm(self, interval):
 
         import json
         from collections import deque
-
 
         candles = deque(maxlen = 400)
         files = self._get_json_data_from_storage()
@@ -52,13 +51,15 @@ class TestBot(threading.Thread):
             file = directory_path + "\\" + file
 
             with open(file, "r") as f:
+                global klines
                 a = time.time()
                 klines = json.load(f)
                 # print(file)
                 # print("load json file time: ", time.time() - a)
 
                 a=time.time()
-                klines = self.client.get_historical_klines(self.symbol.upper(), Client.KLINE_INTERVAL_15MINUTE, "7 day ago UTC")
+                
+                klines = self.client.get_historical_klines(self.symbol.upper(), interval, "7 day ago UTC")
                 print("load json data time: {:0.02f}".format(time.time()-a))
                 load_json = time.time() - a
                 #TODO: loop thru candle lines. For each candle, update indicator and run algorithm
@@ -87,12 +88,12 @@ class TestBot(threading.Thread):
 
                         if signal == True:
                             #create fake order if signal is true
-                            self.order_maker.fake_buy(candle['close'])
+                            self.order_maker.buy(candle['close'])
                             print(datetime.datetime.fromtimestamp(float(candle['time'])/1000), "...place fake order, buy price: ", candle['close'])
                     else:
-                        self.order_maker.check_current_fake_position(candle['close'])
+                        self.order_maker.check_current_position(candle['close'])
                         if not self.order_maker.is_in_position:
-                            print(datetime.datetime.fromtimestamp(float(candle['time'])/1000), "...{}, price: {},candle low: {}, candle high: {}".format(
+                            print(datetime.datetime.fromtimestamp(float(candle['time'])/1000), "...{}, price: {},candle low: {}, candle high: {}\n".format(
                             self.order_maker.orders[-1]['recordData'][1]['type'],
                             self.order_maker.orders[-1]['recordData'][1]['price'],
                             candle['low'],
@@ -101,9 +102,9 @@ class TestBot(threading.Thread):
 
                             order_time += (time.time() - d)
 
-                            #on inner loop exit, do back test log
-                            self.order_maker.back_test_log()
-                            self.report()
+                #on inner loop exit, do back test log
+                self.order_maker.back_test_log(self.report(interval = interval), )
+                
 
                 #debug
                 print("total: {:0.04f}--load_json: {:0.02f}--candle: {:0.04f}--algorithm: {:0.02f}--order: {:0.02f}".format(
@@ -143,7 +144,7 @@ class TestBot(threading.Thread):
 
     def run(self):
         self.is_running = True
-        self._back_test_algorithm()
+        self._back_test_algorithm(self.client.KLINE_INTERVAL_15MINUTE)
 
 
 
@@ -153,26 +154,49 @@ class TestBot(threading.Thread):
         self.is_running = False
 
 
-    def report(self):
+    def report(self, interval):
+        
+        # RETURN JSON TYPE METADATA ABOUT SESSION
         count = 0
+        _count = 0
         loss = 0
         gain = 0
-
+        win_streak = 0
+        lose_streak = 0
+        start_time = str(datetime.datetime.fromtimestamp(klines[0][0]/1000))
+        end_time = str(datetime.datetime.fromtimestamp(klines[-1][0]/1000))
+        temp = self.order_maker.orders[0]['recordData'][1]['type']
+        
         for i in self.order_maker.orders:
+            _count += 1
             if len(i['recordData']) == 2:
-                if i['recordData'][1]['type'] == "STOP_LOSS_LIMIT":
-                    loss += 1
-                else:
-                    gain += 1
-                    count += 1
-
-
+                
+                if i['recordData'][1]['type'] != temp:
+                    
+                    
+                    if i['recordData'][1]['type'] == 'STOP_LOSS_LIMIT':
+                        if _count > lose_streak:
+                            lose_streak = _count
+                        loss += _count
+                    else:
+                        if _count > win_streak:
+                            win_streak = _count
+                        gain += _count
+                    count += _count
+                    temp = i['recordData'][1]['type']
+                    _count = 0
         if count > 0:
-            winRate = gain/count
+            winRate = gain/count*100
             pnl = math.pow(1+self.order_maker.take_profit,gain)/math.pow(1+self.order_maker.stop_loss,loss)*100 - 100
         else:
             winRate = 0
             pnl = 0
+        
+        print("Symbol :\t\t {}\nOrders :\t\t {}\nGain:    \t\t {}\nLoss:    \t\t {}\nWin Rate:\t\t {}\nPNL:    \t\t {}\nWin streak:\t\t {}\nLose streak:\t\t {}\n\
+Start time:\t\t {}\nEnd Time:\t\t {}\nInterval:\t\t {}\nOrder Maker:\t\t {}\nIndicator:\t\t {}\n".format(
+        self.symbol, count, gain, loss, round(winRate,2), round(pnl,2), win_streak,
+        lose_streak, start_time, end_time, interval, self.order_maker.get_config(), self.indicator.get_config()
+        ))
         metadata = {
             'pnlPercentage' : pnl,
             'symbol' : self.symbol,
@@ -181,10 +205,15 @@ class TestBot(threading.Thread):
             'loss' : loss,
             'winRate' : winRate,
             'orderMaker' : self.order_maker.get_config(),
-            'indicator' : self.indicator.get_config()
+            'indicator' : self.indicator.get_config(),
+            'winStreak' : win_streak,
+            'loseStreak' : lose_streak,
+            'startTime': start_time,
+            'end_time' : end_time,
+            'candleInterval' : interval
             }
-
-        pprint.pprint(metadata)
+        
+        return metadata
 
 
 if __name__ == "__main__":
