@@ -15,8 +15,13 @@ mở cmd tại folder có chứa file này, chạy "pip install <tên-file-vừa
   - chạy "pip install numpy"
   - chạy "pip install playsound"
   - chạy "pip install websocket-client"
+
+
+
 Hướng dẫn chạy file:
 
+
   - tải cả thư mục về.
-  - mở file binanceApi.py, tự sửa lại apiKey và apíSecret --> save lại rồi chạy
+  - 
+  - mở file binanceApi.py, tự sửa lại apiKey và apiSecret --> save lại rồi chạy
   - **lưu ý:** chỉ được chạy program từ file binanceApi, không chạy program từ file python khác
