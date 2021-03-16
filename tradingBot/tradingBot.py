@@ -18,12 +18,11 @@ from .alertBot import AlertBot
 
 class TradingBot(threading.Thread):
 
-    def __init__(self, client, symbol, algorithm, order_maker, indicatore):
+    def __init__(self, client, symbol, algorithm, order_maker, indicator):
         threading.Thread.__init__(self)
         self.is_running = False
 
         #initiating fields
-        self.test_mode = test_mode
         self.client = client
         self.symbol = symbol
         self.algorithm = algorithm
@@ -56,6 +55,9 @@ class TradingBot(threading.Thread):
     def run(self):
         self.is_running = True
         self.crawl_klines()
+        
+    def log(self):
+        print(".... still not have loggin function..")
 
 
     def stop(self):

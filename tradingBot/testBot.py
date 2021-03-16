@@ -59,7 +59,7 @@ class TestBot(threading.Thread):
 
                 a=time.time()
                 
-                klines = self.client.get_historical_klines(self.symbol.upper(), interval, "7 day ago UTC")
+                klines = self.client.get_historical_klines(self.symbol.upper(), interval, "30 day ago UTC")
                 print("load json data time: {:0.02f}".format(time.time()-a))
                 load_json = time.time() - a
                 #TODO: loop thru candle lines. For each candle, update indicator and run algorithm
@@ -167,24 +167,27 @@ class TestBot(threading.Thread):
         end_time = str(datetime.datetime.fromtimestamp(klines[-1][0]/1000))
         temp = self.order_maker.orders[0]['recordData'][1]['type']
         
+        
         for i in self.order_maker.orders:
-            _count += 1
             if len(i['recordData']) == 2:
-                
-                if i['recordData'][1]['type'] != temp:
+                if i['recordData'][1]['type'] == "LIMIT_MAKER":
+                    gain += 1
+                else:
+                    loss += 1
                     
-                    
-                    if i['recordData'][1]['type'] == 'STOP_LOSS_LIMIT':
-                        if _count > lose_streak:
-                            lose_streak = _count
-                        loss += _count
-                    else:
+                if i['recordData'][1]['type'] == temp:
+                    _count += 1
+                else:
+                    if i['recordData'][1]['type'] == "LIMIT_MAKER":
                         if _count > win_streak:
                             win_streak = _count
-                        gain += _count
-                    count += _count
+                    else:
+                        if _count > lose_streak:
+                            lose_streak = _count
+                        
+                    _count = 1
                     temp = i['recordData'][1]['type']
-                    _count = 0
+        count += gain + loss
         if count > 0:
             winRate = gain/count*100
             pnl = math.pow(1+self.order_maker.take_profit,gain)/math.pow(1+self.order_maker.stop_loss,loss)*100 - 100
