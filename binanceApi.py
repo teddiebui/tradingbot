@@ -21,6 +21,7 @@ import tradingbot.tradingBot.testBot as testBot
 import tradingbot.tradingBot.alertBot as ab
 import tradingbot.orderMaker.orderMaker as om
 import tradingbot.orderMaker.testOrderMaker as testOm
+import tradingbot.orderMaker.OrderManager as oM
 from tradingbot.algorithms import *
 
 class MainApplication:
@@ -41,16 +42,18 @@ class MainApplication:
         for symbol in self.symbols[:]:
             
             indicator = ind.Indicator(oversold_threshold = 30.666, overbought_threshold = 70)
+            order_manager = oM.OrderMaker(self.client, symbol, stake=11, take_profit=0.06, stop_loss=0.01, fee=0.001, discount = 0, trailing_stop_mode = True)
 
             #BACK TEST BOT
-            #BACK TEST BOT
-            order_maker = testOm.OrderMaker(self.client, symbol, stake=20, take_profit=0.06, stop_loss=0.01, fee=0.001, discount = 0)
-            bot = testBot.TestBot(self.client, symbol, self.algorithm, order_maker = order_maker, indicator = indicator)
+            # order_maker = testOm.OrderMaker(self.client, symbol, stake=20, take_profit=0.06, stop_loss=0.01, fee=0.001, discount = 0)
+            # bot = testBot.TestBot(self.client, symbol, self.algorithm, order_maker = order_maker, indicator = indicator, start_str = "30 day ago")
             
             #REAL BOT
+            
             # order_maker = om.OrderMaker(self.client, symbol, stake=10.5, take_profit=0.015, stop_loss=0.01, fee=0.001, discount = 0)
-            # bot = tb.TradingBot(self.client, symbol, self.algorithm, order_maker = order_maker, indicator = indicator)
+            bot = tb.TradingBot(self.client, symbol, self.algorithm, indicator = indicator, order_manager = order_manager)
             self.BOTS.append(bot)
+            # bot.crawl_all_symbols()
             bot.start()
             
             return
@@ -73,6 +76,9 @@ if __name__ == "__main__":
 
     main = MainApplication(apiKey, apiSecret)
     main.run()
+    
+    # print(main.client.get_symbol_info(symbol="BNBUSDT"))
+    
 
     # klines = main.client.get_historical_klines("SFPUSDT", Client.KLINE_INTERVAL_1MINUTE, "8 Feb, 2021")
     # pprint.pprint(klines[0])
