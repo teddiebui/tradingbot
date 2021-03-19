@@ -1,1 +1,0 @@
-[{"recordId": "1", "recordData": [{"orderId": "1", "price": "235.202"}, {"type": "STOP_LOSS_LIMIT", "price": "233.227"}]}, {"recordId": "2", "recordData": [{"orderId": "2", "price": "230.6661"}, {"type": "LIMIT_MAKER", "price": "235.6315"}]}]
