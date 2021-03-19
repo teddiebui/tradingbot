@@ -31,7 +31,7 @@ class MainApplication:
 
 
         self.BOTS = []
-        self.symbols=['BNBUSDT', 'BTCUSDT', 'LUNAUSDT']
+        self.symbols=['WTCUSDT', 'BTCUSDT', 'LUNAUSDT']
 
         self.algorithm = algo_rsi
 
@@ -53,6 +53,7 @@ class MainApplication:
             # order_maker = om.OrderMaker(self.client, symbol, stake=10.5, take_profit=0.015, stop_loss=0.01, fee=0.001, discount = 0)
             bot = tb.TradingBot(self.client, symbol, self.algorithm, indicator = indicator, order_manager = order_manager)
             self.BOTS.append(bot)
+            
             # bot.crawl_all_symbols()
             bot.start()
             
@@ -87,6 +88,7 @@ if __name__ == "__main__":
             time.sleep(1)
     
     except KeyboardInterrupt:
+        print("stop")
         for bot in main.BOTS:
             bot.stop()
         
