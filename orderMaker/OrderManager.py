@@ -13,28 +13,60 @@ from ..priceMaker import priceMaker as pm
 
 class OrderMaker(pm.PriceMaker):
 
-    def __init__(self, client, symbol, stake, take_profit, stop_loss, fee, discount):
+    def __init__(self, client, symbol, stake, take_profit, stop_loss, fee, discount, trailing_stop_mode = False):
 
         pm.PriceMaker.__init__(self, stake, take_profit, stop_loss, fee, discount)
         self.client = client
         self.symbol = symbol
-        self.is_in_position = False
+
         self.current_position = None
-        self.was_stop_loss = False
+        
 
         self.open_orders = []
         self.orders = []
         
         #flags
         self.is_in_position = False
-        self.trailing_stop_mode = False
+        self.trailing_stop_mode = trailing_stop_mode
 
-
-    def buy(self, current_price = 0.00):
+    def buy_with_stop_limit(self, current_price = 0):
         
-        if self.is_in_position == True:
-            self.check_current_position(current_price)
-
+        if self.is_in_position == False:
+            
+            order_market_buy = self.client.order_market_buy(
+                        symbol= self.symbol.upper(),
+                        quoteOrderQty= self.stake)
+                        
+            buy_price, qty, vol = self._extract_filled_order(order_market_buy)
+            stop_loss_price = self.get_stop_loss_price(buy_price)
+            
+            order_limit_sell = self.client.create_order(
+                symbol= self.symbol,
+                side=SIDE_SELL,
+                type='STOP_LOSS_LIMIT',
+                timeInForce=TIME_IN_FORCE_GTC,
+                price = stop_loss_price, 
+                stopPrice = stop_loss_price,
+                quantity=qty,
+                newOrderRespType = 'FULL')
+                
+            print("#######################################")
+            pprint.pprint(order_limit_sell)
+            
+            record = {
+            
+                'recordId' : order_market_buy['orderId'],
+                'recordData': [order_market_buy, order_limit_sell]
+            }
+            
+            self.orders.append(record)
+            self.open_orders.append(self.orders[-1]['recordData'])
+            self.is_in_position = True
+            
+            self._log_temp()
+                    
+    def buy_with_oco(self, current_price = 0.00):
+        
         if self.is_in_position == False:
             self.is_in_position = True
 
@@ -44,8 +76,6 @@ class OrderMaker(pm.PriceMaker):
                         quoteOrderQty= self.stake)
                         
             buy_price, quantity, volume = self._extract_filled_order(order_market_buy)
- 
-            self.open_orders.append(list(order_market_buy))
 
             # self.orders[str(len(self.orders) + 1)] = [order_market_buy]
 
@@ -86,14 +116,16 @@ class OrderMaker(pm.PriceMaker):
                     stopPrice= stop_loss_price,
                     
                     price=take_profit_price)
+                    
+                
 
-            self.open_orders[-1].extend(order_oco_sell['orderReports']) # the list contains 2 dicts of TP and SL order
             
             record = {
-                'recordId' : str(len(self.orders) + 1),
-                'recordData': [order_market_buy]
+                'recordId' : order_market_buy['orderId'],
+                'recordData': [order_market_buy, order_oco_sell['orderReports']]
             }
             self.orders.append(record)
+            self.open_orders.append(self.orders[-1]['recordData'])
             
             self._log_temp()
             
@@ -141,54 +173,96 @@ class OrderMaker(pm.PriceMaker):
             #             'symbol': 'BNBUSDT'}],
             # 'symbol': 'BNBUSDT',
             # 'transactionTime': 1614958606001}
+            
+    def check_current_position2(self, current_price):
+        
+        if self.is_in_position:
+            
+            for orders in self.open_orders[:]:
+                order = orders[1]
+                if type(order) == list and len(order) > 1:
+                    #THIS IS OCO ORDER
+                    order = order[0]
+                
+                #check for stop loss
+                if current_price <= float(order['price']) and order[status] != 'FILLED':
+                    stop_loss_order = self.client.get_order(symbol = self.symbol, orderId=order['orderId'])
+                    if stop_loss_order['status'] == 'FILLED':
+                        #update records
+                        orders.pop()
+                        orders.append(stop_loss_order)
+                        #update stake
+                        price, qty, vol = self._extract_filled_order(take_profit_order)
+                        self.stake = vol
+                        #update flag
+                        self.is_in_position = False
+                        
+                        self.open_orders.remove(orders)
+                        return
 
     def check_current_position(self, current_price):
 
         if self.is_in_position:
-            stop_loss_order, take_profit_order = self.open_orders # returns 2 orders 
             
-            #check for take profit
-            if current_price >= float(take_profit_order['price']):
-                take_profit_order = self.client.get_order(symbol = self.symbol, orderId=take_profit_order['orderId'])
-                if take_profit_order['status'] == 'FILLED':
-                    price, qty, vol = self._extract_filled_order(take_profit_order)
-                    self.stake = vol
-                    self.orders[-1]['recordData'].append(take_profit_order)
-                    self.is_in_position = False
-                    del self.open_orders[0]
-                    return
+            for orders in self.open_orders:
+                stop_loss_order, take_profit_order = orders # returns 2 orders 
+                
+                #check for take profit
+                if current_price >= float(take_profit_order['price']):
+                    order = self.client.get_order(symbol = self.symbol, orderId=take_profit_order['orderId'])
+                    if order['status'] == 'FILLED':
+                        price, qty, vol = self._extract_filled_order(take_profit_order)
+                        self.stake = vol
+                        order['status'] = 'FILLED'
+                        self.is_in_position = False
+                        del self.open_orders[0]
+                        return
             
-            #check for stop loss
-            if current_price <= float(stop_loss_order['price']):
-                stop_loss_order = self.client.get_order(symbol = self.symbol, orderId=stop_loss_order['orderId'])
-                if stop_loss_order['status'] == 'FILLED':
-                    price, qty, vol = self._extract_filled_order(take_profit_order)
-                    self.stake = vol
-                    self.orders[-1]['recordData'].append(stop_loss_order)
-                    self.is_in_position = False
-                    self.was_stop_loss = True
-                    del self.open_orders[0]
-                    return
-                    
+                #check for stop loss
+                if current_price <= float(stop_loss_order['price']):
+                    stop_loss_order = self.client.get_order(symbol = self.symbol, orderId=stop_loss_order['orderId'])
+                    if stop_loss_order['status'] == 'FILLED':
+                        price, qty, vol = self._extract_filled_order(take_profit_order)
+                        self.stake = vol
+                        self.orders[-1]['recordData'].append(stop_loss_order)
+                        self.is_in_position = False
+                        self.was_stop_loss = True
+                        del self.open_orders[0]
+                        return
+                        
     def trailing_stop(self, current_price):
         
-        
-        for order in self.open_orders:
-            if order[0]['symbol'].upper() == self.symbol.upper() and order[1]['status'] != 'FILLED':
-                #cancel previous stop loss
-                orderId = order[1]['orderId']
-                cancel_order = self.client.cancel_order(symbol = self.symbol, orderId = orderId)
-                while len(order) > 1:
-                    order.pop()
+        if self.is_in_position:
+            for orders in self.open_orders[:]:
+
+                order = orders[1]
                 
-                #add new stop loss
-                price, qty, vol = self._extract_filled_order(order[0])
-                new_order_limit_sell = self.client.order_limit_sell(
-                    symbol = self.symbol, 
-                    price = round(order[1]['price'] + (current_price - price),4), 
-                    stopPrice = round((order[1]['price'] + (current_price - price))*1.005,4),
-                    quantity = qty)
-                order.append(new_order_limit_sell)
+                if type(order) == list and len(order) > 1:
+                    #THIS IS OCO ORDER
+                    order = order[0]
+
+                if orders[0]['symbol'].upper() == self.symbol.upper() and orders[1]['status'] != 'FILLED':
+                    
+                    #cancel previous stop loss
+                    orderId = order['orderId']
+                    cancel_order = self.client.cancel_order(symbol = self.symbol, orderId = orderId)
+                    
+                    while len(orders) > 1:
+                        orders.pop()
+                        
+                    #add new stop loss
+                    price, qty, vol = self._extract_filled_order(orders[0])
+                    new_order_limit_sell = self.client.create_order(
+                        symbol= self.symbol,
+                        side=SIDE_SELL,
+                        type='STOP_LOSS_LIMIT',
+                        timeInForce=TIME_IN_FORCE_GTC,
+                        price = round(float(order['price']) + (current_price - price),4), 
+                        stopPrice = round((float(order['price']) + (current_price - price))*1.005,4),
+                        quantity=qty,
+                        newOrderRespType = 'FULL')
+
+                    orders.append(new_order_limit_sell)
 
     def _extract_filled_order(self, order):
 
