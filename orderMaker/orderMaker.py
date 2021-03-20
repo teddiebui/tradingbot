@@ -25,7 +25,10 @@ class OrderMaker(pm.PriceMaker):
         self.orders = []
 
 
-    def buy(self, test_mode = False, buy_price = 0.00):
+    def buy(self, current_price = 0.00):
+        
+        if self.is_in_position == True:
+            self.check_current_position(current_price)
 
         if self.is_in_position == False:
             self.is_in_position = True
@@ -35,7 +38,8 @@ class OrderMaker(pm.PriceMaker):
                         symbol= self.symbol.upper(),
                         quoteOrderQty= self.stake)
                         
-            buy_price, quantity = self._get_buy_price(order_market_buy)
+            buy_price, quantity, volume = self._extract_filled_order(order_market_buy)
+            
 
             record = {
                 'recordId' : str(len(self.orders) + 1),
@@ -132,38 +136,43 @@ class OrderMaker(pm.PriceMaker):
 
     def check_current_position(self, current_price):
 
-        if self.is_in_position:
-            stop_loss_order, take_profit_order = self.open_orders # returns 2 orders 
-            
-            if current_price >= float(take_profit_order['price']):
-                take_profit_order = self.client.get_order(symbol = self.symbol, orderId=take_profit_order['orderId'])
-                if take_profit_order['status'] == 'FILLED':
-                    self.orders[-1]['recordData'].append(take_profit_order)
-                    self.is_in_position = False
-                    del self.open_orders[0]
-                    return
-            
-            if current_price <= float(stop_loss_order['price']):
-                stop_loss_order = self.client.get_order(symbol = self.symbol, orderId=stop_loss_order['orderId'])
-                if stop_loss_order['status'] == 'FILLED':
-                    self.orders[-1]['recordData'].append(stop_loss_order)
-                    self.is_in_position = False
-                    self.was_stop_loss = True
-                    del self.open_orders[0]
-                    return
+        stop_loss_order, take_profit_order = self.open_orders # returns 2 orders 
+        
+        if current_price >= float(take_profit_order['price']):
+            take_profit_order = self.client.get_order(symbol = self.symbol, orderId=take_profit_order['orderId'])
+            if take_profit_order['status'] == 'FILLED':
+                price, qty, vol = self._extract_filled_order(take_profit_order)
+                self.stake = vol
+                self.orders[-1]['recordData'].append(take_profit_order)
+                self.is_in_position = False
+                del self.open_orders[0]
+                return
+        
+        if current_price <= float(stop_loss_order['price']):
+            stop_loss_order = self.client.get_order(symbol = self.symbol, orderId=stop_loss_order['orderId'])
+            if stop_loss_order['status'] == 'FILLED':
+                price, qty, vol = self._extract_filled_order(take_profit_order)
+                self.stake = vol
+                self.orders[-1]['recordData'].append(stop_loss_order)
+                self.is_in_position = False
+                self.was_stop_loss = True
+                del self.open_orders[0]
+                return
                     
 
-    def _get_buy_price(self, order):
+    def _extract_filled_order(self, order):
 
         totalQty = 0
         totalVolume = 0
+        avgPrice = 0
 
         for i in order['fills']:
             
             totalQty += float(i['qty'])
             totalVolume += float(i['price'])*float(i['qty'])
 
-        return math.ceil(totalVolume/totalQty*10000)/10000, totalQty
+        avgPrice = math.ceil(totalVolume/totalQty*10000)/10000
+        return avgPrice, totalQty, totalVolume
 
 
     def _log_temp(self):

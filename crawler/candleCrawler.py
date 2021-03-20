@@ -5,6 +5,7 @@ import pprint
 import json
 import datetime
 from collections import deque
+from math import floor
 
 
 from binance.client import Client
@@ -20,7 +21,8 @@ class CandleCrawler:
 
         self.WEBSOCKETS = [
             "wss://stream.binance.com:9443/ws/{}@kline_1m".format(symbol.lower()),
-            "wss://stream.binance.com:9443/ws/{}@kline_15m".format(symbol.lower())
+            "wss://stream.binance.com:9443/ws/{}@kline_15m".format(symbol.lower()),
+            "wss://stream.binance.com:9443/ws/!miniTicker@arr"
             ]
         
         self.FWEBSOCKETS = [
@@ -28,21 +30,15 @@ class CandleCrawler:
         ]
         self.THREADS = []
 
-        a = time.time()
-        self.candles_1m = self.candle_initiation(Client.KLINE_INTERVAL_1MINUTE, "1 day ago UTC")
-        self.candles_15m = self.candle_initiation(Client.KLINE_INTERVAL_15MINUTE, "1 day ago UTC")
-        self.candles_30m = []
-        self.candles_1h = self.candle_initiation(Client.KLINE_INTERVAL_1HOUR, "1 day ago UTC")
-        self.candles_2h = []
-        self.candles_4h = self.candle_initiation(Client.KLINE_INTERVAL_1HOUR, "4 day ago UTC")
-        self.candles_1d = []
-        self.candles_3d = []
-        self.candles_1w = []
+        
+        self.candles_15m, self.candles_1h, self.candles_4h = self.build_candle(symbol)
 
         self.ws = []
         self.is_running = False
         
-        self.backtesting()
+        self.data={}
+       
+        
 
 
     def candle_initiation(self,interval, time):
@@ -57,62 +53,166 @@ class CandleCrawler:
                 'close' :float(i[4])
                 } for i in klines]
         
-    def backtesting(self):
-        import datetime
-        from time import time
-        
-        candle_5m = []
+    def build_candle(self, symbol):
+
         candle_15m = []
-        candle_30m = []
         candle_1h = []
-        candle_2h = []
         candle_4h = []
         
-        klines = self.client.get_historical_klines(self.symbol.upper(), Client.KLINE_INTERVAL_1MINUTE , "1 day ago UTC")
-        
-        a = time()
-        for i in klines:
+        klines = self.client.get_historical_klines(symbol.upper(), Client.KLINE_INTERVAL_15MINUTE , "3 day ago UTC")
+
+        for i in klines[:]:
             
             t = datetime.datetime.fromtimestamp(i[0]/1000)
             
-            #1m
-      
-            #15m
-            if t.minute % 15 == 0:
-                candle_15m.append(i)
-            
-            if len(candle_15m) > 0: 
-                if i[2] > candle_15m[-1][2]:
-                    candle_15m[-1][2] = i[2]
-                if i[3] < candle_15m[-1][3]:
-                    candle_15m[-1][3] = i[3]
-                    
-                candle_15m[-1][4] = i[4]
-                    
+            candle = {'time': float(i[0])/1000,
+                'open' : float(i[1]), 
+                'high' : float(i[2]), 
+                'low' : float(i[3]), 
+                'close' :float(i[4])
+                }
+                
+            candle_15m.append(candle)
+        
             #1h
             if t.minute == 0:
-                candle_1h.append(i)
+                candle_1h.append(dict.copy(candle))
             if len(candle_1h) > 0:
-                if i[2] > candle_1h[-1][2]:
-                    candle_1h[-1][2] = i[2]
-                if i[3] < candle_1h[-1][3]:
-                    candle_1h[-1][3] = i[3]
+                if candle['high'] > candle_1h[-1]['high']:
+                    candle_1h[-1]['high'] = float(candle['high'])
+                if candle['low'] < candle_1h[-1]['low']:
+                    candle_1h[-1]['low'] = candle['low']
                 
-                candle_1h[-1][4] = i[4]
-        b = time()
-        
-        pprint.pprint(candle_15m[-12:])
-        pprint.pprint(candle_1h[-4:])
-        print("loop time: ", b - a)
-        print("len ", len(candle_15m))
-        print("len ", len(candle_1h))
+                candle_1h[-1]['close'] = candle['close']
+                
+            #4h
+            if t.minute == 0 and t.hour % 4 == 0:
+                candle_4h.append(dict.copy(candle))
+            if len(candle_4h) > 0:
+                if candle['high'] > candle_4h[-1]['high']:
+                    candle_4h[-1]['high'] = candle['high']
+                if candle['low'] < candle_4h[-1]['low']:
+                    candle_4h[-1]['low'] = candle['low']
+                
+                candle_4h[-1]['close'] = candle['close']
 
+        return candle_15m, candle_1h, candle_4h
+        
 
     def start_crawling(self, callback1 = None, callback2 = None):
 
-        self.is_running = True
+        def _private_on_message(ws, msg, callback1 = None, callback2 = None):
 
-        thread = threading.Thread(target=self._start_crawling_handler, args=(self.WEBSOCKETS[-1], self._wss_on_message, callback1, callback2))
+            msg = json.loads(msg)
+
+            candle =    {'time': float(msg['k']['t'])/1000,
+                            'open' : float(msg['k']['o']), 
+                            'high' : float(msg['k']['h']), 
+                            'low' : float(msg['k']['l']), 
+                            'close' :float(msg['k']['c'])}
+            
+            self.candles_15m[-1] = candle
+            # print(candle['close'])
+            
+            try:
+                if msg['k']['x'] == True:
+                    del self.candles_15m[0]
+                    self.candles_15m.append(candle)
+                    
+            except Exception as e:
+                print("error from 'start_crawling' in 'candleCrawler'...see below: ") 
+                print(repr(e))
+                      
+            try:
+                
+                callback1()
+            except Exception as e:
+                print("error from 'callback1' in 'candleCrawler'...see below: ") 
+                print(repr(e))
+            try:
+                callback2()
+            except Exception as e:
+                print("error from 'callback2' in 'candleCrawler'...see below: ") 
+                print(repr(e))
+                        
+            
+            
+            return
+        
+        self.is_running = True
+                
+        thread = threading.Thread(target=self._start_crawling_handler, args=(self.WEBSOCKETS[1], _private_on_message, callback1, callback2))
+        thread.start()
+        self.THREADS.append(thread)
+        
+    def start_all_symbol(self, callback1 = None, callback2 = None):
+        
+        from time import time
+        import talib
+        import numpy
+        
+        tickers = self.client.get_ticker()
+        
+        c = time()
+        symbols = [i['symbol'] for i in tickers if i['symbol'].endswith("USDT") and i['count'] != 1 and "UPUSDT" not in i['symbol'] and "DOWNUSDT" not in i['symbol']]
+        d = time()
+        
+        total = time()
+        # LUU Y: chi lay ten symbol trong bien tickers
+        for symbol in symbols:
+            
+            a = time()
+            candles_15m, candles_1h, candles_4h = self.build_candle(symbol.upper())
+            
+            try:
+                self.data[symbol.upper()] = {'candles' : [candles_15m, candles_1h, candles_4h]}
+
+            except Exception as e:
+                print("...error occured in \"start_all_symbol\" inside \"CandleCrawler\"... see below:")
+                print(repr(e))
+                
+            
+            b = time()
+            print("symbol candle build time: ", b-a)
+        total = time() - total
+        print("total symbols: ", len(symbols))
+        print("total time: ", total)
+        
+        
+        
+        
+        def _private_on_message(ws, msg, callback1 = None,  callback2 = None):
+            msg = json.loads(msg)
+            # FILTER PAIR USDT AND STILL ACTIVE ON BINANCE
+            msg = [i for i in msg if i['s'].endswith("USDT") and "UPUSDT" not in i['s'] and "DOWNUSDT" not in i['s']] 
+            
+            # TODO LATER: build up candle 15m
+            ###
+            
+            t = datetime.datetime.fromtimestamp(msg[-1]['E']/1000)
+
+            if floor(t.second) % 2 == 0:
+                print(t)
+                for i in msg:
+                    try:
+                        symbol = i['s'].upper()
+                        close = round(float(i['c']),4) #TEMPORARILY USE CLOSE PRICE ONLY
+                        candles_15m = self.data[symbol]['candles'][0]
+                        candles_15m[-1]['close'] = close #change close price of the last candles until every 15min
+                        if t.minute % 15 == 0:
+                            del candles_15m[0]
+                            candles_15m.append({'close' : close})
+                        callback1(symbol, candles_15m)
+                    except Exception as e:
+                        print(repr(e))
+                print("...refreshed")
+                        
+            if floor(t.second) == 0:
+                print("...hi, 1 minute passed away - ", str(t))
+            
+        self.is_running = True
+        
+        thread = threading.Thread(target=self._start_crawling_handler, args=(self.WEBSOCKETS[2], _private_on_message, callback1))
         thread.start()
         self.THREADS.append(thread)
         
@@ -148,30 +248,7 @@ class CandleCrawler:
     def _wss_on_error(self, ws, error):
         print("error: ", error)
 
-    def _wss_on_message(self, ws, msg, callback1 = None, callback2 = None):
-
-        msg = json.loads(msg)
-        pprint.pprint('hi...' + self.symbol.upper())
-        # pprint.pprint(msg)
-        # pprint.pprint(self.candles_15m)
-        candle =    {'time': float(msg['k']['t'])/1000,
-                        'open' : float(msg['k']['o']), 
-                        'high' : float(msg['k']['h']), 
-                        'low' : float(msg['k']['l']), 
-                        'close' :float(msg['k']['c'])}
-        
-        self.candles_15m[-1] = candle
-        print(candle)
-        if msg['k']['x'] == True:
-            del self.candles[0]
-            self.candles_15m.append(candle)
-
-
-        if callback1 != None:
-            callback1()
-
-        if callback2 != None:
-            callback2(float(msg['k']['c']))
+    
 
     def _futures_on_message(self, ws, msg, callback1 = None, callback2 = None):
         print("hi...")
@@ -194,15 +271,42 @@ if __name__ == "__main__":
     apiSecret = "kBzXtdMQsOVCrfV9qwyCabshmyALX3ABNjzGJF2a7ZoHF7oh6lzh4gEuvHOwQBSR"
     client = Client(apiKey, apiSecret)
     
-    socket = "wss://fstream.binance.com/ws/bnbusdt@kline_15m"
-    
-    c = CandleCrawler(client, "bnbusdt")
-    # c.start_futures_all_tickers()
-    
-    import time
+    crawler = CandleCrawler(client, "bnbusdt")
+    crawler.start_all_symbol(None)
     try:
         while True:
             time.sleep(3)
     except:
-        c.stop()
+        crawler.stop()
+    
+    
+    
+    #####################################
+    from time import time
+    from time import sleep
+    
+    a = time()
+    tickers = client.get_ticker()
+    b = time()
+    c = time()
+    tickers = [i for i in tickers if i['symbol'].endswith("USDT") if i['count'] != 1]
+    d = time()
+    
+    total = time()
+    for symbol in tickers:
+        if symbol['count'] == 1:
+            pprint.pprint(symbol)
+        # sleep(0.1)
+    total = time() - total
+    print("total time: ", total)
+    
+    
+    
+    
+    print("symbols total: ", len(tickers))
+    print("crawl ticker time: ", b-a)
+    print("filter timeL ", d-c)
+    
+    # pprint.pprint(symbols)
+    ##########################################
     

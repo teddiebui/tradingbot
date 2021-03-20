@@ -18,7 +18,7 @@ from .alertBot import AlertBot
 
 class TestBot(threading.Thread):
 
-    def __init__(self, client, symbol, algorithm, order_maker, indicator):
+    def __init__(self, client, symbol, algorithm, order_maker, indicator, start_str):
         threading.Thread.__init__(self)
         self.is_running = False
 
@@ -28,7 +28,7 @@ class TestBot(threading.Thread):
         self.algorithm = algorithm
         self.order_maker = order_maker
         self.indicator = indicator
-        
+        self.start_str = start_str
     def _back_test_algorithm(self, interval):
 
         import json
@@ -59,7 +59,7 @@ class TestBot(threading.Thread):
 
                 a=time.time()
                 
-                klines = self.client.get_historical_klines(self.symbol.upper(), interval, "30 day ago UTC")
+                klines = self.client.get_historical_klines(self.symbol.upper(), interval, self.start_str)
                 print("load json data time: {:0.02f}".format(time.time()-a))
                 load_json = time.time() - a
                 #TODO: loop thru candle lines. For each candle, update indicator and run algorithm

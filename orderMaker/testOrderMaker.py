@@ -52,6 +52,7 @@ class OrderMaker(pm.PriceMaker):
 
             if current_price >= float(take_profit_order['price']):
                 self.orders[-1]['recordData'].append(take_profit_order)
+                self.stake = round(self.stake*(1+self.take_profit),3)
                 self.is_in_position = False
                 del self.open_orders[0]
                 self._log_temp()
@@ -59,24 +60,13 @@ class OrderMaker(pm.PriceMaker):
 
             if current_price <= float(stop_loss_order['price']):
                 self.orders[-1]['recordData'].append(stop_loss_order)
+                self.stake = round(self.stake/(1+self.stop_loss),3)
                 self.is_in_position = False
                 del self.open_orders[0]
                 self._log_temp()
                 return
                     
                     
-    def _get_buy_price(self, order):
-
-        totalQty = 0
-        totalVolume = 0
-
-        for i in order['fills']:
-            
-            totalQty += float(i['qty'])
-            totalVolume += float(i['price'])*float(i['qty'])
-
-        return math.ceil(totalVolume/totalQty*10000)/10000, totalQty
-
 
     def _log_temp(self):
 

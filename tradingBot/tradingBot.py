@@ -18,7 +18,7 @@ from .alertBot import AlertBot
 
 class TradingBot(threading.Thread):
 
-    def __init__(self, client, symbol, algorithm, order_maker, indicator):
+    def __init__(self, client, symbol, algorithm, indicator, order_maker = None, order_manager = None):
         threading.Thread.__init__(self)
         self.is_running = False
 
@@ -28,29 +28,86 @@ class TradingBot(threading.Thread):
         self.algorithm = algorithm
         self.order_maker = order_maker
         self.indicator = indicator
+        self.order_manager = order_manager
 
         #initiating objects
         self.alert_bot = AlertBot()
         self.candle_crawler = cc.CandleCrawler(client, symbol)
 
     def crawl_klines(self):
-        # CALCULATE EVERY MINTUE
-        self.candle_crawler.start_crawling(callback1=self._check_if_can_buy, callback2=self.order_maker.check_current_position)
+        
+        # CALCULATE EVERY INTERVAL TIME
+        
+        def _check_current_position():
+            try:
+                if self.order_manager.is_in_position == True:
+                
+                    if self.order_manager.trailing_stop_mode == True:
+                        result = self.order_manager.check_current_position2(self.candle_crawler.candles_15m[-1]['close'])
+                        if result == True:
+                            print("_check current_position done")
+                    else:
+                        result = self.order_manager.check_current_position(self.candle_crawler.candles_15m[-1]['close'])
+            except Exception as e:
+                print("'_check_current_position' in 'tradingbot':", e)
+        
+        self.candle_crawler.start_crawling(callback1=self._check_if_can_buy, callback2=_check_current_position)
+    
+    def crawl_all_symbols(self):
+        
+        #EVERY 15MIN INVERTAL WILL CHECK ALL SYMBOL IF ANY BUY SIGNAL (BASED ON GIVEN ALGORITM)
+        
+        def _private_callback(symbol, candles_15m):
+            try:
+  
+                signal, rsi_value = self.algorithm.run(candles_15m, self.indicator)
+                
+                if signal == True:
+                    print(symbol, rsi_value)
+                    self.alert_bot.run()
+                
+                return
+            except Exception as e:
+                print("_private_callback in 'crawl_all_symbols' inside 'TradingBot' error... see below: ")
+            
+        self.candle_crawler.start_all_symbol(callback1=_private_callback)
         
     def _check_if_can_buy(self):
 
-        #TODO: finish trading algorithm for bot
-        if not self.order_maker.is_in_position:
-            # find a signal to buy if currently not in position
-            try:
-                signal = self.algorithm.run(self.candle_crawler.candles_15m, self.indicator)
-                print(self.indicator.rsi[-7:])
-                if signal == True:
-                    self.alert_bot.run()
-                    #MAKE ORDER
-                    pass
-            except Exception as e:
-                print("..._chcek if can buy: ", e)
+        # FOR DEBUG PURPOSE
+        try:
+            temp, rsi = self.algorithm.run(self.candle_crawler.candles_15m, self.indicator)
+            print("symbol: {}, price: {}, rsi: {}, time: {}".format(self.symbol, 
+                self.candle_crawler.candles_15m[-1]['close'], 
+                rsi, 
+                datetime.datetime.fromtimestamp(self.candle_crawler.candles_15m[-1]['time'])))
+        except Exception as e:
+            print(e)
+            
+        
+        if not self.order_manager.is_in_position:
+            signal, rsi = self.algorithm.run(self.candle_crawler.candles_15m, self.indicator)
+            
+            if signal == True:
+                
+                self.alert_bot.run()
+                
+                #MAKE ORDER
+                if self.order_manager.trailing_stop_mode == True:
+                    print("....buy time ", datetime.datetime.fromtimestamp(self.candle_crawler.candles_15m[-1]['time']))
+                    self.order_manager.buy_with_stop_limit()
+                else:
+                    self.order_manager.buy_with_oco()
+        else:
+            if self.order_manager.trailing_stop_mode == True:
+                current_candle = self.candle_crawler.candles_15m[-1]
+                prev_candle = self.candle_crawler.candles_15m[-2]
+                if current_candle['close'] > prev_candle['close']:
+                    result = self.order_manager.trailing_stop(current_candle['close'])
+                    if result == True:
+                        print("....check trailing stop done ")
+            
+            
 
     def run(self):
         self.is_running = True
@@ -61,11 +118,10 @@ class TradingBot(threading.Thread):
 
 
     def stop(self):
-        self.report()
         self.is_running = False
 
         self.candle_crawler.stop()
-        self.order_maker.stop()
+        self.order_manager.stop()
         
 
 if __name__ == "__main__":
