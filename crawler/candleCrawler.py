@@ -5,6 +5,7 @@ import pprint
 import json
 import datetime
 from collections import deque
+import traceback
 from math import floor
 
 
@@ -128,7 +129,7 @@ class CandleCrawler:
                 callback1()
             except Exception as e:
                 print("error from 'callback1' in 'candleCrawler'...see below: ") 
-                print(repr(e))
+                traceback.print_tb(e.__traceback__)
             try:
                 callback2()
             except Exception as e:
@@ -192,23 +193,23 @@ class CandleCrawler:
             t = datetime.datetime.fromtimestamp(msg[-1]['E']/1000)
 
             if floor(t.second) % 2 == 0:
-                print(t)
                 for i in msg:
                     try:
                         symbol = i['s'].upper()
                         close = round(float(i['c']),4) #TEMPORARILY USE CLOSE PRICE ONLY
                         candles_15m = self.data[symbol]['candles'][0]
                         candles_15m[-1]['close'] = close #change close price of the last candles until every 15min
-                        if t.minute % 15 == 0:
+                        candles_15m[-1]['time'] = msg[-1]['E']/1000 
+                        if t.minute % 15 == 0 and floor(t.second) == 0:
+                            print("...15min passed away.. ", str(t))
                             del candles_15m[0]
-                            candles_15m.append({'close' : close})
+                            candles_15m.append({'close' : close, 'time' : msg[-1]['E']/1000})
                         callback1(symbol, candles_15m)
                     except Exception as e:
                         print(repr(e))
-                print("...refreshed")
                         
             if floor(t.second) == 0:
-                print("...hi, 1 minute passed away - ", str(t))
+                print("...hi, 1 minute passed away - ", c)
             
         self.is_running = True
         
