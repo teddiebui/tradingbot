@@ -14,16 +14,20 @@ from ..priceMaker import priceMaker as pm
 class OrderMaker(pm.PriceMaker):
 
     def __init__(self, client, symbol, stake, take_profit, stop_loss, fee, discount, trailing_stop_mode = False):
-
-        pm.PriceMaker.__init__(self, stake, take_profit, stop_loss, fee, discount)
+        
         self.client = client
         self.symbol = symbol
 
-        self.current_position = None
+        pm.PriceMaker.__init__(self, stake, take_profit, stop_loss, fee, discount, precision = self._get_decimal_precision(symbol))
         
+        
+        self.current_position = None
 
         self.open_orders = []
         self.orders = []
+        
+        #load temp pending orders if any
+        self._load_open_orders()
         
         #flags
         self.is_in_position = False
@@ -42,6 +46,7 @@ class OrderMaker(pm.PriceMaker):
                         
             buy_price, qty, vol = self._extract_filled_order(order_market_buy)
             stop_loss_price = self.get_stop_loss_price(buy_price)
+            print(buy_price, round((stop_loss_price*1.001), self.precision))
             
             order_limit_sell = self.client.create_order(
                 symbol= self.symbol,
@@ -49,7 +54,7 @@ class OrderMaker(pm.PriceMaker):
                 type='STOP_LOSS_LIMIT',
                 timeInForce=TIME_IN_FORCE_GTC,
                 price = stop_loss_price, 
-                stopPrice = round((stop_loss_price*1.001),4),
+                stopPrice = round((stop_loss_price*1.001), self.precision),
                 quantity=qty,
                 newOrderRespType = 'FULL')
                 
@@ -115,7 +120,7 @@ class OrderMaker(pm.PriceMaker):
                     stopLimitTimeInForce=TIME_IN_FORCE_GTC,
                     quantity=quantity,
                     stopLimitPrice = stop_loss_price,
-                    stopPrice= round((stop_loss_price*1.002),4),
+                    stopPrice= round((stop_loss_price*1.001), self.precision),
                     
                     price=take_profit_price)
                     
@@ -194,12 +199,13 @@ class OrderMaker(pm.PriceMaker):
                     #check for stop loss
                     if current_price <= float(order['price']) and order['status'] != 'FILLED':
                     
-                        print("STOP LOSS PRICE MET!")
+                        
                         
                         #fetch order from web to check it's status
                         stop_loss_order = self.client.get_order(symbol = self.symbol, orderId=order['orderId'])
                         
                         if stop_loss_order['status'] == 'FILLED':
+                            print("STOP LOSS MET!: ", datetime.datetime.fromtimestamp(stop_loss_order['transactionTime']/1000))
                         
                             #update records
                             orders.pop()
@@ -283,13 +289,14 @@ class OrderMaker(pm.PriceMaker):
                         
                         #TODO: check again new stop loss price
                         ### NOT YET DONE
+                        print("ready to add new stop_loss, prev_price: ", self.prev_price, " current_price: ", current_price)
                         new_order_limit_sell = self.client.create_order(
                             symbol= self.symbol,
                             side=SIDE_SELL,
                             type='STOP_LOSS_LIMIT',
                             timeInForce=TIME_IN_FORCE_GTC,
-                            price = round(float(order['price']) + (current_price - self.prev_price),4), 
-                            stopPrice = round((float(order['price']) + (current_price - self.prev_price))*1.001,4),
+                            price = round(float(order['price']) + (current_price - self.prev_price), self.precision), 
+                            stopPrice = round(float(order['stopPrice']) + (current_price - self.prev_price), self.precision),
                             quantity=qty,
                             newOrderRespType = 'FULL')
                         
@@ -317,8 +324,11 @@ class OrderMaker(pm.PriceMaker):
             totalQty += float(i['qty'])
             totalVolume += float(i['price'])*float(i['qty'])
 
-        avgPrice = math.ceil(totalVolume/totalQty*10000)/10000
+        avgPrice = math.ceil(totalVolume/totalQty*math.pow(10, self.precision))/ math.pow(10, self.precision)
         return avgPrice, totalQty, totalVolume
+        
+    def _load_open_orders(self):
+        print("load..open..orders")
 
 
     def _log_temp(self):
@@ -354,6 +364,19 @@ class OrderMaker(pm.PriceMaker):
             json.dump([metadata, self.orders],file)
 
         print("order maker logged")
+    
+    def _get_decimal_precision(self, symbol):
+        
+        info = self.client.get_symbol_info(symbol=symbol)
+        minPrice = float(info['filters'][0]['minPrice'])
+        precision = 0
+        
+        while minPrice != 1:
+            minPrice = minPrice * 10
+            precision += 1
+        
+        return precision
+        
 
 
     def stop(self):

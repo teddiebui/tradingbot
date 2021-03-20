@@ -13,9 +13,9 @@ from ..priceMaker import priceMaker as pm
 
 class OrderMaker(pm.PriceMaker):
 
-    def __init__(self, client, symbol, stake, take_profit, stop_loss, fee, discount):
+    def __init__(self, client, symbol, stake, take_profit, stop_loss, fee, discount, precision = 4):
 
-        pm.PriceMaker.__init__(self, stake, take_profit, stop_loss, fee, discount)
+        pm.PriceMaker.__init__(self, stake, take_profit, stop_loss, fee, discount, precision)
         self.client = client
         self.symbol = symbol
         self.is_in_position = False

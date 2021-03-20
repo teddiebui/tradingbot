@@ -13,9 +13,9 @@ from ..priceMaker import priceMaker as pm
 
 class OrderMaker(pm.PriceMaker):
 
-    def __init__(self, client, symbol, stake, take_profit, stop_loss, fee, discount):
+    def __init__(self, client, symbol, stake, take_profit, stop_loss, fee, discount, precision = 4):
 
-        pm.PriceMaker.__init__(self, stake, take_profit, stop_loss, fee, discount)
+        pm.PriceMaker.__init__(self, stake, take_profit, stop_loss, fee, discount, 4)
         self.client = client
         self.symbol = symbol
         self.is_in_position = False
@@ -65,9 +65,7 @@ class OrderMaker(pm.PriceMaker):
                 del self.open_orders[0]
                 self._log_temp()
                 return
-                    
-                    
-
+    
     def _log_temp(self):
 
 
@@ -125,7 +123,7 @@ class OrderMaker(pm.PriceMaker):
         with open(os.path.join(directory_path, path), 'w', encoding='utf-8') as file:
             json.dump([metadata, self.orders],file)
 
-        print("back test order logged")
+        # print("back test order logged")
 
     def stop(self):
         #TODO: cancel any

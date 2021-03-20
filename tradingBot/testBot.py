@@ -35,9 +35,6 @@ class TestBot(threading.Thread):
         from collections import deque
 
         candles = deque(maxlen = 400)
-        files = self._get_json_data_from_storage()
-        directory_path = os.path.dirname(os.path.dirname(__file__)) + "\\candle_data\\" + self.symbol.lower()
-        # directory_path = []
 
         total = time.time()
         candle_time = 0
@@ -47,76 +44,68 @@ class TestBot(threading.Thread):
 
         #MAIN START HERE
         #TODO: load json data
-        for file in files:
-            file = directory_path + "\\" + file
 
-            with open(file, "r") as f:
-                global klines
-                a = time.time()
-                klines = json.load(f)
-                # print(file)
-                # print("load json file time: ", time.time() - a)
+        global klines
+        a = time.time()
 
-                a=time.time()
+        a=time.time()
+        
+        klines = self.client.get_historical_klines(self.symbol.upper(), interval, self.start_str)
+        print("load json data time: {:0.02f}".format(time.time()-a))
+        load_json = time.time() - a
+        
+        #TODO: loop thru candle lines. For each candle, update indicator and run algorithm
+        for each in klines[:]:
+            if self.is_running == False:
+                return
+
+            a=time.time()
+            candle = {'time' : float(each[0]),
+            'open' : float(each[1]), 
+            'high' : float(each[2]), 
+            'low' : float(each[3]), 
+            'close' :float(each[4])
+            }
+
+            candles.append(candle)
+            candle_time += (time.time() - a)
+            
+            if not self.order_maker.is_in_position:
+                #TODO: run algorithm
+                c=time.time()
+                signal, rsi = self.algorithm.run(candles, self.indicator)
+                algorithm_time += (time.time() - c)
+                d = time.time()
                 
-                klines = self.client.get_historical_klines(self.symbol.upper(), interval, self.start_str)
-                print("load json data time: {:0.02f}".format(time.time()-a))
-                load_json = time.time() - a
-                #TODO: loop thru candle lines. For each candle, update indicator and run algorithm
-                for each in klines[:]:
-                    if self.is_running == False:
-                        return
-                    # print(datetime.datetime.fromtimestamp(float(each[0])/1000))
+                if signal == True:
+                    self.order_maker.buy(candle['close'])
+                    print(datetime.datetime.fromtimestamp(float(candle['time'])/1000), "...place fake order, buy price: ", candle['close'])
+            else:
+                self.order_maker.check_current_position(candle['close'])
+                if not self.order_maker.is_in_position:
+                    print(datetime.datetime.fromtimestamp(float(candle['time'])/1000), "...{}, price: {},candle low: {}, candle high: {}\n".format(
+                    self.order_maker.orders[-1]['recordData'][1]['type'],
+                    self.order_maker.orders[-1]['recordData'][1]['price'],
+                    candle['low'],
+                    candle['high']))
+                    # pprint.pprint(self.order_maker.orders[len(self.order_maker.orders)])
 
-                    a=time.time()
-                    candle = {'time' : float(each[0]),
-                    'open' : float(each[1]), 
-                    'high' : float(each[2]), 
-                    'low' : float(each[3]), 
-                    'close' :float(each[4])
-                    }
+                    order_time += (time.time() - d)
 
-                    candles.append(candle)
-                    candle_time += (time.time() - a)
+        #on inner loop exit, do back test log
+        self.report(interval = interval)
+        # self.order_maker.back_test_log(self.report(interval = interval), )
+        
 
-                    if not self.order_maker.is_in_position:
-                        #TODO: run algorithm
-                        c=time.time()
-                        signal = self.algorithm.run(candles, self.indicator)
-                        algorithm_time += (time.time() - c)
-                        d = time.time()
-
-                        if signal == True:
-                            #create fake order if signal is true
-                            self.order_maker.buy(candle['close'])
-                            print(datetime.datetime.fromtimestamp(float(candle['time'])/1000), "...place fake order, buy price: ", candle['close'])
-                    else:
-                        self.order_maker.check_current_position(candle['close'])
-                        if not self.order_maker.is_in_position:
-                            print(datetime.datetime.fromtimestamp(float(candle['time'])/1000), "...{}, price: {},candle low: {}, candle high: {}\n".format(
-                            self.order_maker.orders[-1]['recordData'][1]['type'],
-                            self.order_maker.orders[-1]['recordData'][1]['price'],
-                            candle['low'],
-                            candle['high']))
-                            # pprint.pprint(self.order_maker.orders[len(self.order_maker.orders)])
-
-                            order_time += (time.time() - d)
-
-                #on inner loop exit, do back test log
-                self.order_maker.back_test_log(self.report(interval = interval), )
-                
-
-                #debug
-                print("total: {:0.04f}--load_json: {:0.02f}--candle: {:0.04f}--algorithm: {:0.02f}--order: {:0.02f}".format(
-                time.time() - total,
-                load_json,
-                candle_time,
-                algorithm_time,
-                order_time)
-                )
-            return
-
-        return
+        #debug
+        print("total: {:0.04f}--load_json: {:0.02f}--candle: {:0.04f}--algorithm: {:0.02f}--order: {:0.02f}".format(
+        time.time() - total,
+        load_json,
+        candle_time,
+        algorithm_time,
+        order_time)
+        )
+ 
 
     def _get_json_data_from_storage(self):
         #for back test at a long period

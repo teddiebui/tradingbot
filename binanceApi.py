@@ -31,7 +31,7 @@ class MainApplication:
 
 
         self.BOTS = []
-        self.symbols=['WTCUSDT', 'BTCUSDT', 'LUNAUSDT']
+        self.symbols=['BNBUSDT', 'ADAUSDT', 'ETHUSDT', 'LITUSDT', 'SFPUSDT', 'LTCUSDT', 'AXSUSDT', 'ALICEUSDT', 'DEGOUSDT', 'THETAUSDT', 'BTCUSDT', 'LUNAUSDT']
 
         self.algorithm = algo_rsi
 
@@ -39,25 +39,25 @@ class MainApplication:
 
     def run(self):
 
-        for symbol in self.symbols[:]:
+        for symbol in self.symbols[:1]:
             
-            indicator = ind.Indicator(oversold_threshold = 30.666, overbought_threshold = 70)
-            order_manager = oM.OrderMaker(self.client, symbol, stake=11, take_profit=0.06, stop_loss=0.01, fee=0.001, discount = 0, trailing_stop_mode = True)
+            indicator = ind.Indicator(oversold_threshold = 32, overbought_threshold = 70)
+            
 
             #BACK TEST BOT
-            # order_maker = testOm.OrderMaker(self.client, symbol, stake=20, take_profit=0.06, stop_loss=0.01, fee=0.001, discount = 0)
-            # bot = testBot.TestBot(self.client, symbol, self.algorithm, order_maker = order_maker, indicator = indicator, start_str = "30 day ago")
+            # order_maker = testOm.OrderMaker(self.client, symbol, stake=20, take_profit=0.06, stop_loss=0.02, fee=0.001, discount = 0)
+            # bot = testBot.TestBot(self.client, symbol, self.algorithm, order_maker = order_maker, indicator = indicator, start_str = "60 day ago")
             
             #REAL BOT
-            
-            # order_maker = om.OrderMaker(self.client, symbol, stake=10.5, take_profit=0.015, stop_loss=0.01, fee=0.001, discount = 0)
+            order_manager = oM.OrderMaker(self.client, symbol, stake=11, take_profit=0.06, stop_loss=0.01, fee=0.001, discount = 0, trailing_stop_mode = True)
             bot = tb.TradingBot(self.client, symbol, self.algorithm, indicator = indicator, order_manager = order_manager)
             self.BOTS.append(bot)
             
             bot.crawl_all_symbols()
+            # bot.order_manager.buy_with_stop_limit()
             # bot.start()
             
-            return
+            # return
 
     def log(self):
 
@@ -77,12 +77,17 @@ if __name__ == "__main__":
 
     main = MainApplication(apiKey, apiSecret)
     main.run()
-    
-    # print(main.client.get_symbol_info(symbol="BNBUSDT"))
+
+    # pprint.pprint(main.client.get_symbol_info(symbol="DEGOUSDT"))
+    # pprint.pprint(main.client.get_symbol_info(symbol="SANDUSDT"))
     
 
     # klines = main.client.get_historical_klines("SFPUSDT", Client.KLINE_INTERVAL_1MINUTE, "8 Feb, 2021")
     # pprint.pprint(klines[0])
+    # import datetime
+    # tickers = main.client.get_ticker()
+    # pprint.pprint([[str(datetime.datetime.fromtimestamp(i['openTime']/1000)), str(datetime.datetime.fromtimestamp(i['closeTime']/1000))] for i in tickers])
+    # pprint.pprint(tickers[0])
     try:
         while True:
             time.sleep(1)
