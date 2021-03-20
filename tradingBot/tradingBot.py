@@ -6,6 +6,7 @@ import datetime
 import os
 import re
 import math
+import traceback
 
 from binance.client import Client
 from binance.exceptions import BinanceAPIException, BinanceOrderException
@@ -33,6 +34,7 @@ class TradingBot(threading.Thread):
         #initiating objects
         self.alert_bot = AlertBot()
         self.candle_crawler = cc.CandleCrawler(client, symbol)
+        
 
     def crawl_klines(self):
         
@@ -62,12 +64,13 @@ class TradingBot(threading.Thread):
                 signal, rsi_value = self.algorithm.run(candles_15m, self.indicator)
                 
                 if signal == True:
-                    print(symbol, rsi_value)
+                    print(symbol, rsi_value, datetime.datetime.fromtimestamp(candles_15m[-1]['time']))
                     self.alert_bot.run()
                 
                 return
             except Exception as e:
                 print("_private_callback in 'crawl_all_symbols' inside 'TradingBot' error... see below: ")
+                traceback.print_tb(e.__traceback__)
             
         self.candle_crawler.start_all_symbol(callback1=_private_callback)
         
@@ -100,10 +103,10 @@ class TradingBot(threading.Thread):
         else:
             if self.order_manager.trailing_stop_mode == True:
                 current_candle = self.candle_crawler.candles_15m[-1]
-                prev_candle = self.candle_crawler.candles_15m[-2]
-                if current_candle['close'] > prev_candle['close']:
+                
+                if current_candle['close'] > self.order_manager.prev_price:
                     result = self.order_manager.trailing_stop(current_candle['close'])
-                    print("....check trailing stop done ,result: ", result)
+                    print("..checked trailing stop: prev_price: {}, current_price: {}, result: {}".format(self.order_manager.prev_price, current_candle['close'], result))
             
             
 
