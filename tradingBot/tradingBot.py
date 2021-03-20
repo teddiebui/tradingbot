@@ -44,8 +44,7 @@ class TradingBot(threading.Thread):
                 
                     if self.order_manager.trailing_stop_mode == True:
                         result = self.order_manager.check_current_position2(self.candle_crawler.candles_15m[-1]['close'])
-                        if result == True:
-                            print("_check current_position done")
+                        print("_check current_position done ...result:", result)
                     else:
                         result = self.order_manager.check_current_position(self.candle_crawler.candles_15m[-1]['close'])
             except Exception as e:
@@ -104,8 +103,7 @@ class TradingBot(threading.Thread):
                 prev_candle = self.candle_crawler.candles_15m[-2]
                 if current_candle['close'] > prev_candle['close']:
                     result = self.order_manager.trailing_stop(current_candle['close'])
-                    if result == True:
-                        print("....check trailing stop done ")
+                    print("....check trailing stop done ,result: ", result)
             
             
 

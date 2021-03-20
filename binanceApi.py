@@ -54,8 +54,8 @@ class MainApplication:
             bot = tb.TradingBot(self.client, symbol, self.algorithm, indicator = indicator, order_manager = order_manager)
             self.BOTS.append(bot)
             
-            # bot.crawl_all_symbols()
-            bot.start()
+            bot.crawl_all_symbols()
+            # bot.start()
             
             return
 
@@ -90,6 +90,8 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print("stop")
         for bot in main.BOTS:
+            pprint.pprint(bot.order_manager.orders)
+            pprint.pprint(bot.order_manager.open_orders)
             bot.stop()
         
 
