@@ -49,7 +49,7 @@ class OrderMaker(pm.PriceMaker):
                 type='STOP_LOSS_LIMIT',
                 timeInForce=TIME_IN_FORCE_GTC,
                 price = stop_loss_price, 
-                stopPrice = round((stop_loss_price*1.002),4),
+                stopPrice = round((stop_loss_price*1.001),4),
                 quantity=qty,
                 newOrderRespType = 'FULL')
                 
@@ -182,30 +182,43 @@ class OrderMaker(pm.PriceMaker):
                 print("checked current position")
                 
                 for orders in self.open_orders[:]:
-                    order = orders[1]
-                    if type(order) == list and len(order) > 1:
-                        #THIS IS OCO ORDER
-                        order = order[0]
+                    # LOOP THRU PENDING ORDERS
                     
+                    order = orders[1]
+                    
+                    if type(order) == list and len(order) > 1:
+                        #handle OCO ORDER
+                        order = order[0]
+                        
+                    #retrieved stop loss order
                     #check for stop loss
                     if current_price <= float(order['price']) and order['status'] != 'FILLED':
+                    
                         print("STOP LOSS PRICE MET!")
+                        
+                        #fetch order from web to check it's status
                         stop_loss_order = self.client.get_order(symbol = self.symbol, orderId=order['orderId'])
+                        
                         if stop_loss_order['status'] == 'FILLED':
+                        
                             #update records
                             orders.pop()
                             orders.append(stop_loss_order)
+                            
                             #update stake
-                            price, qty, vol = self._extract_filled_order(take_profit_order)
+                            price, qty, vol = self._extract_filled_order(stop_loss_order)
                             self.stake = vol
+                            
                             #update flag
                             self.is_in_position = False
                             
                             self.open_orders.remove(orders)
                             return True
+                            
         except Exception as e:
             print(".. error occured in 'check_current_position2' inside OrderManager... see below: ")
             print(e)
+            
         return False
 
     def check_current_position(self, current_price):
@@ -246,35 +259,46 @@ class OrderMaker(pm.PriceMaker):
             try:
                 for orders in self.open_orders[:]:
 
-                    order = orders[1]
+                    order = orders[1] #stop_loss_order
+                    
                     
                     if type(order) == list and len(order) > 1:
                         #HANDLE CCO ORDER ONLY
                         order = order[0]
+                        
+                    print("...retrieved stop loss order...")
 
                     if orders[0]['symbol'].upper() == self.symbol.upper() and orders[1]['status'] != 'FILLED' and current_price > self.prev_price:
+                        
                         
                         #cancel previous stop loss
                         orderId = order['orderId']
                         cancel_order = self.client.cancel_order(symbol = self.symbol, orderId = orderId)
-                        
+                        print("...cancelled ... old stop losss")
                         while len(orders) > 1:
                             orders.pop()
                             
                         #add new stop loss
                         price, qty, vol = self._extract_filled_order(orders[0])
+                        
+                        #TODO: check again new stop loss price
+                        ### NOT YET DONE
                         new_order_limit_sell = self.client.create_order(
                             symbol= self.symbol,
                             side=SIDE_SELL,
                             type='STOP_LOSS_LIMIT',
                             timeInForce=TIME_IN_FORCE_GTC,
-                            price = round(float(order['price']) + (current_price - price),4), 
-                            stopPrice = round((float(order['price']) + (current_price - price))*1.005,4),
+                            price = round(float(order['price']) + (current_price - self.prev_price),4), 
+                            stopPrice = round((float(order['price']) + (current_price - self.prev_price))*1.001,4),
                             quantity=qty,
                             newOrderRespType = 'FULL')
+                        
+                        pprint.pprint(new_order_limit_sell)
+                        print("added new stop_loss, prev_price: ", self.prev_price, " current_price: ", current_price)
 
                         orders.append(new_order_limit_sell)
                         self.prev_price = current_price
+                        
                         return True
                         
             except Exception as e:
@@ -306,7 +330,7 @@ class OrderMaker(pm.PriceMaker):
 
         with open(
                 os.path.join(directory_path,"loggings\\temp_order_log_.json"),'w', encoding='utf-8') as file:
-            json.dump(self.orders,file)
+            json.dump([self.orders, self.open_orders],file)
 
     def log(self, metadata):
 
