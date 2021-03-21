@@ -10,6 +10,7 @@ from math import floor
 
 
 from binance.client import Client
+from .klineCrawlerHelper import KlineCrawlerHelper
 
 
 class CandleCrawler:
@@ -120,21 +121,27 @@ class CandleCrawler:
                     del self.candles_15m[0]
                     self.candles_15m.append(candle)
                     
+                    
+                # trcallback2()
+                # except Exception as e:
+                    # print("error from 'callback2' in 'candleCrawler'...see below: ") 
+                    # print(repr(e))y:
+                    
+                
+                    try:
+                
+                        callback1()
+                    except Exception as e:
+                        print("error from 'callback1' in 'candleCrawler'...see below: ") 
+                        traceback.print_tb(e.__traceback__)
+                    
+                    
+                    
             except Exception as e:
                 print("error from 'start_crawling' in 'candleCrawler'...see below: ") 
                 print(repr(e))
                       
-            try:
-                
-                callback1()
-            except Exception as e:
-                print("error from 'callback1' in 'candleCrawler'...see below: ") 
-                traceback.print_tb(e.__traceback__)
-            try:
-                callback2()
-            except Exception as e:
-                print("error from 'callback2' in 'candleCrawler'...see below: ") 
-                print(repr(e))
+            
                         
             
             
@@ -221,8 +228,8 @@ class CandleCrawler:
                 b = time()
                 print("symbol candle build time: ", b-a)
             except Exception as e:
-                import traceback
-                traceback.print_tb(e.__traceback__)
+                # import traceback
+                # traceback.print_tb(e.__traceback__)
                 print("\t", symbol, " not support in this app")
             
         
@@ -320,14 +327,27 @@ if __name__ == "__main__":
     client = Client(apiKey, apiSecret)
     
     crawler = CandleCrawler(client, "bnbusdt")
-    crawler._get_all_symbol_futures()
-    
     # crawler.start_all_symbol(None)
+    
+    
+    
+    
+    tickers = client.futures_ticker()
+        
+    symbols = [i['symbol'] for i in tickers if i['symbol'].endswith("USDT") and i['count'] != 1 and not i['symbol'].startswith("DEFI")]
+    helper = KlineCrawlerHelper(symbols)
+    data = helper.mainloop()
+    print(len(data))
+    
+    # pprint.pprint(helper.data)
+    
     # try:
         # while True:
             # time.sleep(3)
     # except:
-        # crawler.stop()
+        # print(helper._data)
+        # print(len(helper._data))
+        # helper.stop()
     
     
     

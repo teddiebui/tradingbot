@@ -101,9 +101,18 @@ class TradingBot(threading.Thread):
                 else:
                     self.order_manager.buy_with_oco()
         else:
+            
+            #then check trailing stop mode
             if self.order_manager.trailing_stop_mode == True:
-                current_candle = self.candle_crawler.candles_15m[-1]
+            
+                #firstly check current position
+                result = self.order_manager.check_current_position2(self.candle_crawler.candles_15m[-1]['close'])
                 
+                if result == True:
+                    print("_check current_position done ...result:", result)
+                    return
+                    
+                current_candle = self.candle_crawler.candles_15m[-1]
                 if current_candle['close'] > self.order_manager.prev_price:
                     result = self.order_manager.trailing_stop(current_candle['close'])
                     print("..checked trailing stop: prev_price: {}, current_price: {}, result: {}".format(self.order_manager.prev_price, current_candle['close'], result))

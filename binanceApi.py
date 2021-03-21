@@ -31,7 +31,7 @@ class MainApplication:
 
 
         self.BOTS = []
-        self.symbols=['BNBUSDT', 'ADAUSDT', 'ETHUSDT', 'LITUSDT', 'SFPUSDT', 'LTCUSDT', 'AXSUSDT', 'ALICEUSDT', 'DEGOUSDT', 'THETAUSDT', 'BTCUSDT', 'LUNAUSDT']
+        self.symbols=['BTCUSDT', 'ADAUSDT', 'ETHUSDT', 'LITUSDT', 'SFPUSDT', 'LTCUSDT', 'AXSUSDT', 'ALICEUSDT', 'DEGOUSDT', 'THETAUSDT', 'BTCUSDT', 'LUNAUSDT']
 
         self.algorithm = algo_rsi
 
@@ -41,7 +41,7 @@ class MainApplication:
 
         for symbol in self.symbols[:1]:
             
-            indicator = ind.Indicator(oversold_threshold = 32, overbought_threshold = 70)
+            indicator = ind.Indicator(oversold_threshold = 30, overbought_threshold = 70)
             
 
             #BACK TEST BOT
@@ -53,9 +53,9 @@ class MainApplication:
             bot = tb.TradingBot(self.client, symbol, self.algorithm, indicator = indicator, order_manager = order_manager)
             self.BOTS.append(bot)
             
-            bot.crawl_all_symbols()
+            # bot.crawl_all_symbols()
             # bot.order_manager.buy_with_stop_limit()
-            # bot.start()
+            bot.start()
             
             # return
 
