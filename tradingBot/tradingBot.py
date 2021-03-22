@@ -101,7 +101,7 @@ class TradingBot(threading.Thread):
             # if have position, do the trailing stop check
             if self.order_manager.trailing_stop_mode == True:
                 result = self.order_manager.trailing_stop(self.candle_crawler.candles_15m[-1]['close'])
-                print("..checked trailing stop: prev_price: {}, current_price: {}, result: {}".format(self.order_manager.prev_price, current_candle['close'], result))
+                print("..checked trailing stop: prev_price: {}, current_price: {}, result: {}".format(self.order_manager.prev_price, self.candle_crawler.candles_15m[-1]['close'], result))
             
             
 
