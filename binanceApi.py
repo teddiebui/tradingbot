@@ -31,7 +31,7 @@ class MainApplication:
 
 
         self.BOTS = []
-        self.symbols=['BTCUSDT', 'ADAUSDT', 'ETHUSDT', 'LITUSDT', 'SFPUSDT', 'LTCUSDT', 'AXSUSDT', 'ALICEUSDT', 'DEGOUSDT', 'THETAUSDT', 'BTCUSDT', 'LUNAUSDT']
+        self.symbols=['BNBUSDT', 'ADAUSDT', 'ETHUSDT', 'LITUSDT', 'SFPUSDT', 'LTCUSDT', 'AXSUSDT', 'ALICEUSDT', 'DEGOUSDT', 'THETAUSDT', 'BTCUSDT', 'LUNAUSDT']
 
         self.algorithm = algo_rsi
 
@@ -54,7 +54,6 @@ class MainApplication:
             self.BOTS.append(bot)
             
             # bot.crawl_all_symbols()
-            # bot.order_manager.buy_with_stop_limit()
             bot.start()
             
             # return

@@ -42,8 +42,9 @@ class OrderMaker(pm.PriceMaker):
             order_market_buy = self.client.order_market_buy(
                         symbol= self.symbol.upper(),
                         quoteOrderQty= round(self.stake, self.precision))
-            pprint.pprint(order_market_buy)
                         
+                        
+            pprint.pprint(order_market_buy)
             buy_price, qty, vol = self._extract_filled_order(order_market_buy)
             stop_loss_price = self.get_stop_loss_price(buy_price)
             # print(buy_price, round((stop_loss_price*1.001), self.precision))
@@ -66,7 +67,7 @@ class OrderMaker(pm.PriceMaker):
             }
             
             self.orders.append(record)
-            self.open_orders.append(self.orders[-1]['recordData'])
+            self.open_orders.append(record['recordData'])
             self.is_in_position = True
             self.prev_price = buy_price
             
@@ -132,7 +133,7 @@ class OrderMaker(pm.PriceMaker):
                 'recordData': [order_market_buy, order_oco_sell['orderReports']]
             }
             self.orders.append(record)
-            self.open_orders.append(self.orders[-1]['recordData'])
+            self.open_orders.append(record['recordData'])
             
             self._log_temp()
             
@@ -189,36 +190,34 @@ class OrderMaker(pm.PriceMaker):
                 for orders in self.open_orders[:]:
                     # LOOP THRU PENDING ORDERS
                     
-                    order = orders[1]
+                    current_open_order = orders[-1]
                     
-                    if type(order) == list and len(order) > 1:
+                    if type(current_open_order) == list and len(current_open_order) > 1:
                         #handle OCO ORDER
-                        order = order[0]
+                        current_open_order = order[0]
                         
                     #retrieved stop loss order
                     #check for stop loss
-                    if current_price <= float(order['price']) and order['status'] != 'FILLED':
-                    
-                        
-                        
+                    if current_price <= float(current_open_order['price']):
+
                         #fetch order from web to check it's status
-                        stop_loss_order = self.client.get_order(symbol = self.symbol, orderId=order['orderId'])
+                        current_stop_loss_order = self.client.get_order(symbol = self.symbol, orderId=current_open_order['orderId'])
                         
-                        if stop_loss_order['status'] == 'FILLED':
-                            # print("STOP LOSS MET!: ", datetime.datetime.fromtimestamp(stop_loss_order['transactTime']/1000))
+                        if current_stop_loss_order['status'] == 'FILLED':
+                            # print("STOP LOSS MET!: ", datetime.datetime.fromtimestamp(current_stop_loss_order['transactTime']/1000))
                             print("STOP LOSS MET!: ")
-                            pprint.pprint(stop_loss_order)
+                            pprint.pprint(current_stop_loss_order)
                             #update records
+                            
                             orders.pop()
-                            orders.append(stop_loss_order)
+                            orders.append(current_stop_loss_order)
                             
                             #update stake
-                            price, qty, vol = self._extract_filled_order(stop_loss_order)
+                            price, qty, vol = self._extract_filled_order(current_stop_loss_order)
                             self.stake = vol
                             
                             #update flag
-                            self.is_in_position = False
-                            
+                            self.is_in_position = False 
                             self.open_orders.remove(orders)
                             return True
                             
@@ -232,7 +231,7 @@ class OrderMaker(pm.PriceMaker):
 
         if self.is_in_position:
             
-            for orders in self.open_orders:
+            for orders in self.open_orders[:]:
                 stop_loss_order, take_profit_order = orders # returns 2 orders 
                 
                 #check for take profit
@@ -266,52 +265,49 @@ class OrderMaker(pm.PriceMaker):
             try:
                 for orders in self.open_orders[:]:
 
-                    order = orders[1] #stop_loss_order
+                    current_stop_loss_order = orders[-1] #stop_loss_order
                     
-                    
-                    if type(order) == list and len(order) > 1:
+                    if type(current_stop_loss_order) == list and len(current_stop_loss_order) > 1:
                         #HANDLE CCO ORDER ONLY
-                        order = order[0]
+                        current_stop_loss_order = current_stop_loss_order[0]
                         
                     print("...retrieved stop loss order...")
 
-                    if orders[0]['symbol'].upper() == self.symbol.upper() and orders[1]['status'] != 'FILLED' and current_price > self.prev_price:
-                        
-                        
+                    if orders[0]['symbol'].upper() == self.symbol.upper() and current_price > self.prev_price:
+
                         #cancel previous stop loss
-                        orderId = order['orderId']
-                        cancel_order = self.client.cancel_order(symbol = self.symbol, orderId = orderId)
+                        cancel_order = self.client.cancel_order(symbol = self.symbol, orderId = current_stop_loss_order['orderId'])
                         print("...cancelled ... old stop losss")
-                        while len(orders) > 1:
-                            orders.pop()
-                            
-                        #add new stop loss
-                        price, qty, vol = self._extract_filled_order(orders[0])
                         
-                        #TODO: check again new stop loss price
-                        ### NOT YET DONE
+                        
+                            
+                        #cautious: need the "qty" only, others are ignored
+                        price, qty, vol = self._extract_filled_order(current_stop_loss_order)
                         print("ready to add new stop_loss, prev_price: ", self.prev_price, " current_price: ", current_price)
+                        
                         new_order_limit_sell = self.client.create_order(
                             symbol= self.symbol,
                             side=SIDE_SELL,
                             type='STOP_LOSS_LIMIT',
                             timeInForce=TIME_IN_FORCE_GTC,
-                            price = round(float(order['price']) + (current_price - self.prev_price), self.precision), 
-                            stopPrice = round(float(order['stopPrice']) + (current_price - self.prev_price), self.precision),
-                            quantity=qty,
+                            price = round(float(current_stop_loss_order['price']) + (current_price - self.prev_price), self.precision), 
+                            stopPrice = round(float(current_stop_loss_order['stopPrice']) + (current_price - self.prev_price), self.precision),
+                            quantity= qty,
                             newOrderRespType = 'FULL')
                         
                         pprint.pprint(new_order_limit_sell)
                         print("added new stop_loss, prev_price: ", self.prev_price, " current_price: ", current_price)
 
-                        orders.append(new_order_limit_sell)
-                        self.prev_price = current_price
+                        orders.pop() # pop out current stop loss order
+                        orders.append(new_order_limit_sell) # append new stop loss order
+                        self.prev_price = current_price # update buy price
                         
                         return True
                         
             except Exception as e:
                 print(".. error occured in 'trailing_stop' inside OrderManager... see below: ")
                 print(e)
+                
         return False
         
     def _extract_filled_order(self, order):
