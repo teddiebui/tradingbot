@@ -35,6 +35,9 @@ class TradingBot(threading.Thread):
         self.alert_bot = AlertBot()
         self.candle_crawler = cc.CandleCrawler(client, symbol)
         
+        #temp
+        self.lock = threading.Lock()
+        
 
     def crawl_klines(self):
         
@@ -47,16 +50,15 @@ class TradingBot(threading.Thread):
         
         def _private_callback(symbol, candles_15m):
             try:
-                
                 signal, rsi_value = self.algorithm.run(candles_15m, self.indicator)
                 # print(symbol, candles_15m[-1]['close'], rsi_value, datetime.datetime.fromtimestamp(candles_15m[-1]['time']), len(candles_15m))
                 # print(self.indicator.rsi[-7:])
                 if signal == True:
-                    print(symbol, candles_15m[-1]['close'], rsi_value, datetime.datetime.fromtimestamp(candles_15m[-1]['time']), len(candles_15m))
-                    print(self.indicator.rsi[-7:])
+                    # print(symbol, candles_15m[-1]['close'], rsi_value, datetime.datetime.fromtimestamp(candles_15m[-1]['time']), len(candles_15m))
+                    # print(symbol, self.indicator.rsi[-7:])
                     return self.indicator.rsi[-7:]
                 
-                return
+                return []
             except Exception as e:
                 print("_private_callback in 'crawl_all_symbols' inside 'TradingBot' error... see below: ")
                 traceback.print_tb(e.__traceback__)
@@ -65,45 +67,44 @@ class TradingBot(threading.Thread):
         
     def _check_if_can_buy(self):
 
-        # PRINTTING FOR DEBUG PURPOSE
-        try:
-            temp, rsi = self.algorithm.run(self.candle_crawler.candles_15m, self.indicator)
-            print("symbol: {}, price: {}, rsi: {}, time: {}".format(self.symbol, 
-                self.candle_crawler.candles_15m[-1]['close'], 
-                rsi, 
-                datetime.datetime.fromtimestamp(self.candle_crawler.candles_15m[-1]['time'])))
-        except Exception as e:
-            print(e)
-        ##################################
-            
-        
-        ## MAIN FUNCTION STARTS HERE
-        
-        if not self.order_manager.is_in_position:
-            signal, rsi = self.algorithm.run(self.candle_crawler.candles_15m, self.indicator)
-            
-            if signal == True:
-                #MAKE ORDER
-                if self.order_manager.trailing_stop_mode == True:
-                    print("....buy time ", datetime.datetime.fromtimestamp(self.candle_crawler.candles_15m[-1]['time']))
-                    self.order_manager.buy_with_stop_limit()
-                else:
-                    self.order_manager.buy_with_oco()
-        else:
-            
-            #firstly update any current position
-            result = self.order_manager.check_current_position2(self.candle_crawler.candles_15m[-1]['close'])
-            
-            if result == True:
-                print("_check current_position done ...result:", result, "is_in_position: ", self.order_manager.is_in_position)
-                return #if all position are closed, return
+        with self.lock:
+            # PRINTTING FOR DEBUG PURPOSE
+            try:
+                temp, rsi = self.algorithm.run(self.candle_crawler.candles_15m, self.indicator)
+                print("symbol: {}, price: {}, rsi: {}, time: {}".format(self.symbol, 
+                    self.candle_crawler.candles_15m[-1]['close'], 
+                    rsi, 
+                    datetime.datetime.fromtimestamp(self.candle_crawler.candles_15m[-1]['time'])))
+            except Exception as e:
+                print(e)
+            ##################################
                 
+            
+            ## MAIN FUNCTION STARTS HERE
+            #firstly update any current position
+            self.order_manager.check_current_position2(self.candle_crawler.candles_15m[-1]['close'])
             # if have position, do the trailing stop check
-            if self.order_manager.trailing_stop_mode == True:
-                result = self.order_manager.trailing_stop(self.candle_crawler.candles_15m[-1]['close'])
-                print("..checked trailing stop: prev_price: {}, current_price: {}, result: {}".format(self.order_manager.prev_price, self.candle_crawler.candles_15m[-1]['close'], result))
+            print("is in position: {}".format(self.order_manager.is_in_position))
             
-            
+            if self.order_manager.is_in_position:
+                
+                if self.order_manager.trailing_stop_mode == True:
+                    
+                    result = self.order_manager.trailing_stop(self.candle_crawler.candles_15m[-1]['close'])
+                    print("..checked trailing stop: prev_price: {}, current_price: {}, result: {}".format(self.order_manager.prev_price, self.candle_crawler.candles_15m[-1]['close'], result))
+            else: 
+                
+                signal, rsi = self.algorithm.run(self.candle_crawler.candles_15m, self.indicator)
+                
+                if signal == True:
+                    #MAKE ORDER
+                    if self.order_manager.trailing_stop_mode == True:
+                        
+                        print("....buy time ", datetime.datetime.fromtimestamp(self.candle_crawler.candles_15m[-1]['time']))
+                        self.order_manager.buy_with_stop_limit()
+                        
+                    else:
+                        self.order_manager.buy_with_oco()   
 
     def run(self):
         self.is_running = True
