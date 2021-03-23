@@ -31,32 +31,27 @@ class MainApplication:
 
 
         self.BOTS = []
-        self.symbols=['BNBUSDT', 'ADAUSDT', 'ETHUSDT', 'LITUSDT', 'SFPUSDT', 'LTCUSDT', 'AXSUSDT', 'ALICEUSDT', 'DEGOUSDT', 'THETAUSDT', 'BTCUSDT', 'LUNAUSDT']
-
         self.algorithm = algo_rsi
-
-
 
     def run(self):
 
-        for symbol in self.symbols[:1]:
-            
-            indicator = ind.Indicator(oversold_threshold = 30, overbought_threshold = 70)
-            
+        symbol = "BNBUSDT"
 
-            #BACK TEST BOT
-            # order_maker = testOm.OrderMaker(self.client, symbol, stake=20, take_profit=0.06, stop_loss=0.02, fee=0.001, discount = 0)
-            # bot = testBot.TestBot(self.client, symbol, self.algorithm, order_maker = order_maker, indicator = indicator, start_str = "60 day ago")
-            
-            #REAL BOT
-            order_manager = oM.OrderMaker(self.client, symbol, stake=11, take_profit=0.06, stop_loss=0.01, fee=0.001, discount = 0, trailing_stop_mode = True)
-            bot = tb.TradingBot(self.client, symbol, self.algorithm, indicator = indicator, order_manager = order_manager)
-            self.BOTS.append(bot)
-            
-            # bot.crawl_all_symbols()
-            bot.start()
-            
-            # return
+        indicator = ind.Indicator(oversold_threshold = 30, overbought_threshold = 70)
+        
+        #BACK TEST BOT
+        # order_maker = testOm.OrderMaker(self.client, symbol, stake=20, take_profit=0.06, stop_loss=0.02, fee=0.001, discount = 0)
+        # bot = testBot.TestBot(self.client, symbol, self.algorithm, order_maker = order_maker, indicator = indicator, start_str = "60 day ago")
+        
+        #REAL BOT
+        order_manager = oM.OrderMaker(self.client, symbol, stake=11, take_profit=0.06, stop_loss=0.01, fee=0.001, discount = 0, trailing_stop_mode = True)
+        bot = tb.TradingBot(self.client, symbol, self.algorithm, indicator = indicator, order_manager = order_manager)
+       
+        # bot.start()
+        bot.crawl_all_symbols()
+        
+        self.BOTS.append(bot)
+        
 
     def log(self):
 
@@ -94,8 +89,6 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print("stop")
         for bot in main.BOTS:
-            pprint.pprint(bot.order_manager.orders)
-            pprint.pprint(bot.order_manager.open_orders)
             bot.stop()
         
 
