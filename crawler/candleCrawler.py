@@ -4,8 +4,9 @@ import time
 import pprint
 import json
 import datetime
-from collections import deque
 import traceback
+
+from collections import deque
 from math import floor
 
 
@@ -45,6 +46,7 @@ class CandleCrawler:
         self.data={}
         self.count = 0
         self.watch_list = {}
+        websocket.enableTrace(True)
        
         
 
@@ -165,8 +167,6 @@ class CandleCrawler:
                             'close' :float(msg['k']['c'])}
             
             self.candles_15m[-1] = candle
-            # print(candle['close'])
-            
             try:
                 if msg['k']['x'] == True:
                     del self.candles_15m[0]
@@ -193,53 +193,87 @@ class CandleCrawler:
         thread.start()
         self.THREADS.append(thread)
         
+    def timerHelper(self, function):
+        print("timestamp: ", time.time(), " now: ", datetime.datetime.now())
+        timer = threading.Timer(interval= 60*15, function = function)
+        timer.start()
+        
+        function()
+        
+        
     def start_all_symbol(self, callback1 = None, callback2 = None):
         
         
         
         def _private_on_message(ws, msg, callback1 = None,  callback2 = None):
-             
-            msg = json.loads(msg)
-            
-            if floor(t.second) % 2 == 0:
-                for i in msg:
-                    symbol = i['s'].upper()
-                    candles_15m = self.data[symbol][0]
-                    candles_15m[-1]['close'] = round(float(i['c']),4) #change close price of the last candles until every 15min
-                    candles_15m[-1]['time'] = msg[-1]['E']/1000 
-                    
-                    result = callback1(symbol, candles_15m)
-                    
-                    if result != None:
-                        self.watch_list[symbol] = result
-                    
-                    if t.minute % 15 == 0 and floor(t.second) == 0:
-                        del candles_15m[0]
-                        candles_15m.append({'close' : close, 'time' : msg[-1]['E']/1000})
-                            
-            if floor(t.second) == 0:
-                print("...hi, 1 minute passed away - ", t)
-            if t.minute % 15 == 0 and floor(t.second) == 0:
-                print("...15min passed away.. ", str(t))
+            # timer = threading.Timer(interval=1, function = self.dumb)
+            # timer.start()
+            # print("...sent timer")
+            try:
+                msg = json.loads(msg)
                 
-        # self._get_all_symbol_spot() # populate self.data with all symbols appearing in spot market
-        self._get_all_symbol_futures() # populate self.data with all symbols in futures BUT use candle from spot
-            
+                # pprint.pprint(msg[0])
+                t = datetime.datetime.fromtimestamp(msg[0]['E']/1000)
+                if floor(t.second) % 2 == 0:
+                    for i in msg:
+                        try:
+                            if i['s'].endswith("USDT"):
+
+                                symbol = i['s'].upper()
+                                candles_15m = self.data[symbol][0]
+                                
+                                candles_15m[-1]['close'] = round(float(i['c']),4) #change close price of the last candles until every 15min
+                                candles_15m[-1]['time'] = msg[-1]['E']/1000 
+                                
+                                result = callback1(symbol, candles_15m) #return a list or an empty list
+                                
+                                if len(result) > 0:
+                                    self.watch_list[symbol] = result
+                                
+                                if t.minute % 15 == 0 and floor(t.second) == 0:
+                                    pass
+                                    
+                        except KeyError:
+                            pass
+                
+                if len(self.watch_list) > 0 :
+                    for symbol, rsi in self.watch_list.items():
+                        print("\t{", symbol, str(rsi[1:]), "}")
+                    print("\ttime: ", t)
+                    print("---------------")
+                if floor(t.second) == 0:
+                    print("...hi, 1 minute passed away - ", t)
+                if t.minute % 15 == 0 and floor(t.second) == 0:
+                    print("...15min passed away.. ", str(t))
+            except Exception as e:
+                import traceback
+                traceback.print_tb(e.__traceback__)
+                print(repr(e))
+                
+        self._get_all_symbol_spot() # populate self.data with all symbols appearing in spot market
+        # self._get_all_symbol_futures() # populate self.data with all symbols in futures BUT use candle from spot
+        
+        dt = datetime.datetime.now()
+        dt = dt.replace(second = 0, microsecond = 0, minute = dt.minute // 15 * 15, day = dt.day - 3)
+        dt.timestamp()
+        kline15mTimer = threading.Timer(interval=dt.timestamp() + 15*60 - time.time(), function = self.timerHelper, args=(self._get_all_symbol_spot))
+        kline15mTimer.start()
+
+        print("OKAY...START NOW")
         self.is_running = True
         self.THREADS.append(threading.Thread(target=self._start_crawling_handler, args=(self.WEBSOCKETS[2], _private_on_message, callback1)))
         self.THREADS[-1].start()
         
     def _get_all_symbol_futures(self):
-
         symbols = [i['symbol'] for i in self.client.futures_ticker() if i['symbol'].endswith("USDT") and i['count'] != 1 and not i['symbol'].startswith("DEFI")]
-        self.data = self.kline_crawler_helper.mainloop(symbols, self.build_candle_from_array)
+        data = self.kline_crawler_helper.mainloop(symbols, self.build_candle_from_array)
+        self.data=data
             
         
     def _get_all_symbol_spot(self):
-
-
         symbols = [i['symbol'] for i in self.client.get_ticker() if i['symbol'].endswith("USDT") and i['count'] != 1 and "UPUSDT" not in i['symbol'] and "DOWNUSDT" not in i['symbol']]
-        self.data = self.kline_crawler_helper.mainloop(symbols, self.build_candle_from_array)
+        data = self.kline_crawler_helper.mainloop(symbols, self.build_candle_from_array)
+        self.data=data
         
     def start_futures_all_tickers(self):
         
@@ -251,7 +285,8 @@ class CandleCrawler:
 
 
     def _start_crawling_handler(self, socket, callback, callback1 = None, callback2 = None):
-
+        
+        
         ws = websocket.WebSocketApp(socket,
                                             on_open = lambda ws: self._wss_on_open(ws),
                                             on_error = lambda ws, error: self._wss_on_error(ws, error),
@@ -301,12 +336,15 @@ if __name__ == "__main__":
     
     
     
-    # tickers = client.futures_ticker()
-    # symbols = [i['symbol'] for i in tickers if i['symbol'].endswith("USDT") and i['count'] != 1 and not i['symbol'].startswith("DEFI")]
-    # helper = KlineCrawlerHelper(symbols)
-    # data = helper.mainloop()
-    # pprint.pprint(len(data))
-    # pprint.pprint(data)
+    
+    tickers = client.futures_ticker()
+    symbols = [i['symbol'] for i in tickers if i['symbol'].endswith("USDT") and i['count'] != 1 and not i['symbol'].startswith("DEFI")]
+    helper = KlineCrawlerHelper()
+    data = helper.mainloop(symbols)
+    pprint.pprint(len(data))
+    for i in data:
+        print(i)
+        break
     
     # pprint.pprint(helper.data)
     
