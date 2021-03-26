@@ -257,6 +257,7 @@ class CandleCrawler:
                     for symbol, rsi in self.watch_list.items():
                         print("\t{", symbol, str(rsi[1:]), "}")
                     print("\ttime: ", t)
+                    self.watch_list = {}
                     print("---------------")
                 if floor(t.second) == 0:
                     print("...hi, 1 minute passed away - ", t)

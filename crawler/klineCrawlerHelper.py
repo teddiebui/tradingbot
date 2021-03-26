@@ -17,6 +17,7 @@ class KlineCrawlerHelper():
         self.THREADS = []
         self.data = {}
         self.is_running = True
+        self.error = False
         
         
     def _get_timestamp(self):
@@ -53,32 +54,38 @@ class KlineCrawlerHelper():
     def mainloop(self, symbols, callback = None):
         import time
         
-        self.symbols = symbols
-        sock = self._get_new_socket()
-        self.data = {}
-        self.running = True
+        while self.error = False:
         
-        self.THREADS.append(threading.Thread(target = self._helper, args =(sock, callback)))
-        self.THREADS[-1].start()
-        timestamp = self._get_timestamp()
-        
-        
-        for symbol in self.symbols[:]:
+            self.symbols = symbols
+            sock = self._get_new_socket()
+            self.data = {}
+            self.running = True
             
-            request_header = [
-                "GET /api/v3/klines?symbol={}&interval={}&startTime={} HTTP/1.1\r\n".format(symbol, "15m", timestamp),
-                "Host: www.binance.com\r\n",
-                # "Connection: keep-alive\r\n",
-                "\r\n\r\n"]  
+            self.THREADS.append(threading.Thread(target = self._helper, args =(sock, callback)))
+            self.THREADS[-1].start()
+            timestamp = self._get_timestamp()
+            
+            
+            for symbol in self.symbols[:]:
                 
-            msg = "".join(request_header).encode()   
-            
-            sock.send(msg)
+                request_header = [
+                    "GET /api/v3/klines?symbol={}&interval={}&startTime={} HTTP/1.1\r\n".format(symbol, "15m", timestamp),
+                    "Host: www.binance.com\r\n",
+                    # "Connection: keep-alive\r\n",
+                    "\r\n\r\n"]  
+                    
+                msg = "".join(request_header).encode()   
+                
+                sock.send(msg)
 
-        for i in self.THREADS:
-            i.join()
+            for i in self.THREADS:
+                i.join()
+            if self.error = True:
+                print("...retrying with another socket")
+                time.sleep(1)
+                continue  
+            return self.data
             
-        return self.data
 
             
     def _helper(self, sock, callback):
@@ -91,45 +98,50 @@ class KlineCrawlerHelper():
         
         total = time.time()
         count = 0
-        while self.is_running == True:
-            a = time.time()
-            recv = sock.recv(4048)
-            content += recv.decode()
-            
-            if not recv:
-                print("eol")
-                return
-            
-            if content_length == 0:
-                header = content[:content.index(delimiter)]
-                content_length = self._get_context_length(header)
-                content = content.replace(content[:len(header)+len(delimiter)],"")
+        try:
+            while self.is_running == True:
+                a = time.time()
+                recv = sock.recv(4048)
+                content += recv.decode()
                 
+                if not recv:
+                    print("eol")
+                    return
+                
+                if content_length == 0:
+                    header = content[:content.index(delimiter)]
+                    content_length = self._get_context_length(header)
+                    content = content.replace(content[:len(header)+len(delimiter)],"")
+                    
 
-              
-            if len(content) >= content_length:
-                
-                body = content[:content_length]
-                
-                content = content.replace(content[:len(body)+len(delimiter)],"")
+                  
+                if len(content) >= content_length:
+                    
+                    body = content[:content_length]
+                    
+                    content = content.replace(content[:len(body)+len(delimiter)],"")
 
-                data = json.loads(body)
+                    data = json.loads(body)
 
-                if callback != None:
-                    data = callback(data)
+                    if callback != None:
+                        data = callback(data)
+                    
+                    self.data[self.symbols[count]] = data
+                    
+                    
+                    
+                    print(content_length, count+1, "/",len(self.symbols))
+                    count += 1
+                    content_length = 0
                 
-                self.data[self.symbols[count]] = data
-                
-                
-                
-                print(content_length, count+1, "/",len(self.symbols))
-                count += 1
-                content_length = 0
-            
-            if len(self.data) == len(self.symbols):
-                print("....crawler helper done")
-                sock.close()
-                return
+                if len(self.data) == len(self.symbols):
+                    print("....crawler helper done")
+                    sock.close()
+                    return
+        except BlockingIOError:
+            print("blocking IO errror...")
+            self.error = True
+            return
 
     def stop(self):
         self.is_running = False
