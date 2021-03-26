@@ -71,16 +71,6 @@ if __name__ == "__main__":
 
     main = MainApplication(apiKey, apiSecret)
     main.run()
-
-    # pprint.pprint(main.client.get_symbol_info(symbol="DEGOUSDT"))
-    # pprint.pprint(main.client.get_symbol_info(symbol="SANDUSDT"))
-    
-
-    # klines = main.client.get_historical_klines("SFPUSDT", Client.KLINE_INTERVAL_1MINUTE, "8 Feb, 2021")
-    # pprint.pprint(klines[0])
-    # import datetime
-    # tickers = main.client.get_ticker()
-    # pprint.pprint([[str(datetime.datetime.fromtimestamp(i['openTime']/1000)), str(datetime.datetime.fromtimestamp(i['closeTime']/1000))] for i in tickers])
     # pprint.pprint(tickers[0])
     try:
         while True:

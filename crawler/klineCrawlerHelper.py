@@ -1,37 +1,28 @@
 import socket
 import ssl
-import threading
 import re
 from datetime import datetime
 import time
 import json
-import queue
 import pprint
 import traceback
+import threading
 
 
-class KlineCrawlerHelper(threading.Thread):
+class KlineCrawlerHelper():
     
     def __init__(self):
         
         self.symbols = None 
         self.THREADS = []
         self.data = {}
-        self._data = []
-        self.q = queue.Queue()
-        
- 
-        self.count = 0
         self.sock = self._get_new_socket()
         self.is_running = True
         
-        threading.Thread.__init__(self)
-        self.lock = threading.Lock()
         
     def _get_timestamp(self):
         dt = datetime.now()
         dt = dt.replace(second = 0, microsecond = 0, minute = dt.minute // 15 * 15, day = dt.day - 3)
-        print(dt)
         return str(int(dt.timestamp()*1000))
         
     def _get_new_socket(self):
@@ -65,6 +56,8 @@ class KlineCrawlerHelper(threading.Thread):
         
         self.symbols = symbols
         self.sock = self._get_new_socket()
+        self.data = {}
+        self.running = True
         
         self.THREADS.append(threading.Thread(target = self._helper, args =(self.sock, callback)))
         self.THREADS[-1].start()

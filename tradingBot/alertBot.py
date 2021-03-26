@@ -6,18 +6,20 @@ import threading
 class AlertBot:
 
     def __init__(self):
+        self.thread = None
         pass
-    def alert(self):
+    def _run(self):
         try:
-            #TEMPORARILY DISABLE THIS FUNCTION
-            return
-            # path = os.path.dirname(__file__) + "\\alert.m4a"
-            # playsound.playsound(path)
+            path = os.path.dirname(__file__) + "\\alert.m4a"
+            playsound.playsound(path)
+            self.thread = None
         except Exception as e:
             print(e)
     
-    def run(self):
-        threading.Thread(target=self.alert, args=()).start()
+    def alert(self):
+        if self.thread == None:
+            self.thread = threading.Thread(target=self._run, args=())
+            self.thread.start()
 
 if __name__ == "__main__":
 

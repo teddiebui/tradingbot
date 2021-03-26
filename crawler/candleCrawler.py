@@ -35,18 +35,25 @@ class CandleCrawler:
         self.FWEBSOCKETS = [
             "wss://fstream.binance.com/ws/!markPrice@arr@1s".format(symbol.lower())
         ]
-        self.THREADS = []
+        
 
         
         self.candles_15m, self.candles_1h, self.candles_4h = self.build_candle(symbol)
 
-        self.ws = []
-        self.is_running = False
         
+        
+        
+        
+        
+        websocket.enableTrace(True)
+        
+        self.is_running = False
+        self.WS = []
+        self.TIMERS = []
+        self.THREADS = []
+        self.watch_list = {}
         self.data={}
         self.count = 0
-        self.watch_list = {}
-        websocket.enableTrace(True)
        
         
 
@@ -193,12 +200,22 @@ class CandleCrawler:
         thread.start()
         self.THREADS.append(thread)
         
-    def timerHelper(self, function):
+    def _timerHelper(self, function):
         print("timestamp: ", time.time(), " now: ", datetime.datetime.now())
-        timer = threading.Timer(interval= 60*15, function = function)
+        timer = threading.Timer(interval= 60*15, function = self._timerHelper)
+        self.TIMERS.append(timer)
         timer.start()
         
         function()
+    
+    def _next_15m_timer(self, callback):
+        dt = datetime.datetime.now()
+        dt = dt.replace(second = 0, microsecond = 0, minute = dt.minute // 15 * 15)
+        print("next interval: ", dt.timestamp() + 15*60 - time.time())
+        timer = threading.Timer(interval=dt.timestamp() + 15*60 - time.time(), function = self._timerHelper, args=(callback,))
+        self.TIMERS.append(timer)
+        
+        return timer
         
         
     def start_all_symbol(self, callback1 = None, callback2 = None):
@@ -249,15 +266,14 @@ class CandleCrawler:
                 import traceback
                 traceback.print_tb(e.__traceback__)
                 print(repr(e))
-                
-        self._get_all_symbol_spot() # populate self.data with all symbols appearing in spot market
-        # self._get_all_symbol_futures() # populate self.data with all symbols in futures BUT use candle from spot
         
-        dt = datetime.datetime.now()
-        dt = dt.replace(second = 0, microsecond = 0, minute = dt.minute // 15 * 15, day = dt.day - 3)
-        dt.timestamp()
-        kline15mTimer = threading.Timer(interval=dt.timestamp() + 15*60 - time.time(), function = self.timerHelper, args=(self._get_all_symbol_spot))
+
+
+        kline15mTimer = self._next_15m_timer(self._get_all_symbol_futures)
         kline15mTimer.start()
+        
+        self._get_all_symbol_futures()
+        # self._get_all_symbol_futures()            
 
         print("OKAY...START NOW")
         self.is_running = True
@@ -292,7 +308,7 @@ class CandleCrawler:
                                             on_error = lambda ws, error: self._wss_on_error(ws, error),
                                             on_close = lambda ws: self._wss_on_close(ws),
                                             on_message = lambda ws,msg: callback(ws, msg, callback1, callback2))
-        self.ws.append(ws)
+        self.WS.append(ws)
         ws.run_forever()
         
 
@@ -319,11 +335,15 @@ class CandleCrawler:
         # pprint.pprint([[datetime.datetime.fromtimestamp(i['time']), i['close']] for i in self.candles_15m[-7:]])
 
     def stop(self):
-        pprint.pprint(self.ws)
-        for i in self.ws:
+        pprint.pprint(self.WS)
+        for i in self.WS:
             i.keep_running = False
             self.is_running = False
         print("candle crawler stopped")
+        
+        for timer in self.TIMERS:
+            timer.cancel()
+        self.kline_crawler_helper.stop()
 
 if __name__ == "__main__":
     from binance.client import Client

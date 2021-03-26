@@ -54,6 +54,7 @@ class TradingBot(threading.Thread):
                 # print(symbol, candles_15m[-1]['close'], rsi_value, datetime.datetime.fromtimestamp(candles_15m[-1]['time']), len(candles_15m))
                 # print(self.indicator.rsi[-7:])
                 if signal == True:
+                    self.alert_bot.alert()
                     # print(symbol, candles_15m[-1]['close'], rsi_value, datetime.datetime.fromtimestamp(candles_15m[-1]['time']), len(candles_15m))
                     # print(symbol, self.indicator.rsi[-7:])
                     return self.indicator.rsi[-7:]
