@@ -53,6 +53,9 @@ class TradingBot(threading.Thread):
                 signal, rsi_value = self.algorithm.run(candles_15m, self.indicator)
                 # print(symbol, candles_15m[-1]['close'], rsi_value, datetime.datetime.fromtimestamp(candles_15m[-1]['time']), len(candles_15m))
                 # print(self.indicator.rsi[-7:])
+                if symbol == "BTCUSDT":
+                    print(symbol, candles_15m[-1]['close'], rsi_value, datetime.datetime.fromtimestamp(candles_15m[-1]['time']), len(candles_15m))
+                    print(self.indicator.rsi[-7:])
                 if signal == True:
                     self.alert_bot.alert()
                     # print(symbol, candles_15m[-1]['close'], rsi_value, datetime.datetime.fromtimestamp(candles_15m[-1]['time']), len(candles_15m))

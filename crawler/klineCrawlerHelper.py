@@ -16,7 +16,6 @@ class KlineCrawlerHelper():
         self.symbols = None 
         self.THREADS = []
         self.data = {}
-        self.sock = self._get_new_socket()
         self.is_running = True
         
         
@@ -55,11 +54,11 @@ class KlineCrawlerHelper():
         import time
         
         self.symbols = symbols
-        self.sock = self._get_new_socket()
+        sock = self._get_new_socket()
         self.data = {}
         self.running = True
         
-        self.THREADS.append(threading.Thread(target = self._helper, args =(self.sock, callback)))
+        self.THREADS.append(threading.Thread(target = self._helper, args =(sock, callback)))
         self.THREADS[-1].start()
         timestamp = self._get_timestamp()
         
@@ -74,7 +73,7 @@ class KlineCrawlerHelper():
                 
             msg = "".join(request_header).encode()   
             
-            self.sock.send(msg)
+            sock.send(msg)
 
         for i in self.THREADS:
             i.join()

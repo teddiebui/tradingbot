@@ -202,7 +202,7 @@ class CandleCrawler:
         
     def _timerHelper(self, function):
         print("timestamp: ", time.time(), " now: ", datetime.datetime.now())
-        timer = threading.Timer(interval= 60*15, function = self._timerHelper)
+        timer = threading.Timer(interval= 60*15, function = self._timerHelper, args=(function,))
         self.TIMERS.append(timer)
         timer.start()
         
