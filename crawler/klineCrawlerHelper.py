@@ -54,7 +54,7 @@ class KlineCrawlerHelper():
     def mainloop(self, symbols, callback = None):
         import time
         
-        while self.error = False:
+        while self.error == False:
         
             self.symbols = symbols
             sock = self._get_new_socket()
@@ -80,7 +80,7 @@ class KlineCrawlerHelper():
 
             for i in self.THREADS:
                 i.join()
-            if self.error = True:
+            if self.error == True:
                 print("...retrying with another socket")
                 time.sleep(1)
                 continue  

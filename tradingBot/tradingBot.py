@@ -66,8 +66,23 @@ class TradingBot(threading.Thread):
             except Exception as e:
                 print("_private_callback in 'crawl_all_symbols' inside 'TradingBot' error... see below: ")
                 traceback.print_tb(e.__traceback__)
+        
+        def _check_fomo_callback(symbol, candles_data):
+            try:
+                # print("...check fomo callback")
+                latest_candles_4h = candles_data[2][-1]
+                change = (latest_candles_4h['close'] / latest_candles_4h['low'] -1 ) * 100
+                if change >= 5:
+                    print("...FOMO: ", symbol, change)
+                    # self.alert_bot.alert()
+                    return change
+            except Exception as e:
+                print("_check_fomo_callback in 'crawl_all_symbols' inside 'TradingBot' error... see below: ")
+                traceback.print_tb(e.__traceback__)
             
-        self.candle_crawler.start_all_symbol(callback1=_private_callback)
+        self.candle_crawler.start_all_symbol(callback1=_private_callback, callback2=_check_fomo_callback)
+        
+    
         
     def _check_if_can_buy(self):
 

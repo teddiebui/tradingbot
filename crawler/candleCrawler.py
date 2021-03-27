@@ -51,9 +51,14 @@ class CandleCrawler:
         self.WS = []
         self.TIMERS = []
         self.THREADS = []
-        self.watch_list = {}
+        self.spot_symbols = []
+        self.futures_symbols = []
         self.data={}
+        
+        self.watch_list = {}
+        self.fomo_watch_list = {}
         self.count = 0
+        
        
         
 
@@ -237,18 +242,31 @@ class CandleCrawler:
                             if i['s'].endswith("USDT"):
 
                                 symbol = i['s'].upper()
+                                timestamp = msg[-1]['E']/1000
                                 candles_15m = self.data[symbol][0]
                                 
-                                candles_15m[-1]['close'] = round(float(i['c']),4) #change close price of the last candles until every 15min
-                                candles_15m[-1]['time'] = msg[-1]['E']/1000 
+                                self.data[symbol][0][-1]['close'] = round(float(i['c']),4) #change close price of the last candles until every 15min
+                                self.data[symbol][1][-1]['close'] = round(float(i['c']),4) #change close price of the last candles until every 15min
+                                self.data[symbol][2][-1]['close'] = round(float(i['c']),4) #change close price of the last candles until every 15min
+                                self.data[symbol][0][-1]['time'] = timestamp #change close price of the last candles until every 15min
+                                self.data[symbol][1][-1]['time'] = timestamp #change close price of the last candles until every 15min
+                                self.data[symbol][2][-1]['time'] = timestamp #change close price of the last candles until every 15min
                                 
-                                result = callback1(symbol, candles_15m) #return a list or an empty list
+                                if symbol == "BTCUSDT":
+                                    pprint.pprint(self.data[symbol][0][-5:])
+                                    pprint.pprint(self.data[symbol][1][-5:])
+                                    pprint.pprint(self.data[symbol][2][-5:])
+                                    
+                                if callback1 != None:
+                                    result = callback1(symbol, candles_15m) #return a list or an empty list
+                                    if len(result) > 0:
+                                        self.watch_list[symbol] = result
+                                        
                                 
-                                if len(result) > 0:
-                                    self.watch_list[symbol] = result
-                                
-                                if t.minute % 15 == 0 and floor(t.second) == 0:
-                                    pass
+                                if callback2 != None:
+                                    change = callback2(symbol, self.data[symbol])
+                                    self.fomo_watch_list[symbol] = change
+
                                     
                         except KeyError:
                             pass
@@ -278,18 +296,18 @@ class CandleCrawler:
 
         print("OKAY...START NOW")
         self.is_running = True
-        self.THREADS.append(threading.Thread(target=self._start_crawling_handler, args=(self.WEBSOCKETS[2], _private_on_message, callback1)))
+        self.THREADS.append(threading.Thread(target=self._start_crawling_handler, args=(self.WEBSOCKETS[2], _private_on_message, callback1, callback2)))
         self.THREADS[-1].start()
         
     def _get_all_symbol_futures(self):
-        symbols = [i['symbol'] for i in self.client.futures_ticker() if i['symbol'].endswith("USDT") and i['count'] != 1 and not i['symbol'].startswith("DEFI")]
-        data = self.kline_crawler_helper.mainloop(symbols, self.build_candle_from_array)
+        self.futures_symbols = [i['symbol'] for i in self.client.futures_ticker() if i['symbol'].endswith("USDT") and i['count'] != 1 and not i['symbol'].startswith("DEFI")]
+        data = self.kline_crawler_helper.mainloop(self.futures_symbols, self.build_candle_from_array)
         self.data=data
             
         
     def _get_all_symbol_spot(self):
-        symbols = [i['symbol'] for i in self.client.get_ticker() if i['symbol'].endswith("USDT") and i['count'] != 1 and "UPUSDT" not in i['symbol'] and "DOWNUSDT" not in i['symbol']]
-        data = self.kline_crawler_helper.mainloop(symbols, self.build_candle_from_array)
+        self.spot_symbols = [i['symbol'] for i in self.client.get_ticker() if i['symbol'].endswith("USDT") and i['count'] != 1 and "UPUSDT" not in i['symbol'] and "DOWNUSDT" not in i['symbol']]
+        data = self.kline_crawler_helper.mainloop(symbols, self.spot_symbols)
         self.data=data
         
     def start_futures_all_tickers(self):
