@@ -74,7 +74,7 @@ class TradingBot(threading.Thread):
                 change = (latest_candles_4h['close'] / latest_candles_4h['low'] -1 ) * 100
                 if change >= 5:
                     print("...FOMO: ", symbol, change)
-                    # self.alert_bot.alert()
+                    self.alert_bot.fomo()
                     return change
             except Exception as e:
                 print("_check_fomo_callback in 'crawl_all_symbols' inside 'TradingBot' error... see below: ")

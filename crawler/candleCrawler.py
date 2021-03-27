@@ -252,10 +252,10 @@ class CandleCrawler:
                                 self.data[symbol][1][-1]['time'] = timestamp #change close price of the last candles until every 15min
                                 self.data[symbol][2][-1]['time'] = timestamp #change close price of the last candles until every 15min
                                 
-                                if symbol == "BTCUSDT":
-                                    pprint.pprint(self.data[symbol][0][-5:])
-                                    pprint.pprint(self.data[symbol][1][-5:])
-                                    pprint.pprint(self.data[symbol][2][-5:])
+                                # if symbol == "BTCUSDT":
+                                    # pprint.pprint(self.data[symbol][0][-5:])
+                                    # pprint.pprint(self.data[symbol][1][-5:])
+                                    # pprint.pprint(self.data[symbol][2][-5:])
                                     
                                 if callback1 != None:
                                     result = callback1(symbol, candles_15m) #return a list or an empty list
@@ -293,7 +293,7 @@ class CandleCrawler:
         
         self._get_all_symbol_futures()
         # self._get_all_symbol_futures()            
-
+        
         print("OKAY...START NOW")
         self.is_running = True
         self.THREADS.append(threading.Thread(target=self._start_crawling_handler, args=(self.WEBSOCKETS[2], _private_on_message, callback1, callback2)))
